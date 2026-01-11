@@ -1,0 +1,6 @@
+# --- Project 2: NSE Liquidity Dashboard COLAB FULL STACK ---
+# Offloads ~3GB of Deep Learning weight to the Cloud.
+
+-r 8-requirements.txt
+tensorflow>=2.15.0         # Heavy: LSTM engine
+shap>=0.44.0               # Heavy: Explainability logic

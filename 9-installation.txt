@@ -1,0 +1,29 @@
+NSE Liquidity Dashboard - Installation & Setup Guide
+
+⚡ HYBRID-LEAN STRATEGY:
+To save 3GB+ of disk space and ensure high-performance training, we use:
+1. Local: Laptop for Scraping, Features, and UI.
+2. Cloud: Google Colab for XGBoost+LSTM training and SHAP analysis.
+
+--- LOCAL SETUP (LAPTOP) ---
+
+1. Create a Virtual Environment:
+    python -m venv nse_env
+
+2. Activate Environment:    
+    Windows: nse_env\Scripts\activate
+    Mac/Linux: source nse_env/bin/activate
+
+3. Install Lean Dependencies:
+    pip install -r 8-requirements.txt
+
+--- CLOUD SETUP (GOOGLE COLAB) ---
+
+1. Open your model training notebook in Colab.
+2. Ensure Runtime Type is set to "T4 GPU".
+3. Run the following in the first cell:
+    !pip install -r 8-requirements-colab.txt
+
+--- DATA BRIDGE ---
+Nishant/Harsh: Ensure the GitHub repo is synced with a shared Google Drive 
+folder so the Cloud models can read the locally scraped Bhavcopy data.
