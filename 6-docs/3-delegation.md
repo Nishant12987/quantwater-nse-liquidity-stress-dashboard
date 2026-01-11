@@ -1,14 +1,14 @@
 # **3-delegation.md**
 *Co-lead task allocation and responsibilities for the NSE Liquidity Dashboard (Hybrid-Lean Workflow).*
 
-## 📂 Full individual delegation:   
-* **Harsh:** See [individual-delegation/harsh-delegation.md](individual-delegation/harsh-delegation.md)
-* **Nishant:** See [individual-delegation/nishant-delegation.md](individual-delegation/nishant-delegation.md)
+## 📂 Full individual delegation:
+* **Harsh:** See [6-docs/individual-delegation/harsh-delegation.md](6-docs/individual-delegation/harsh-delegation.md)
+* **Nishant:** See [6-docs/individual-delegation/nishant-delegation.md](6-docs/individual-delegation/nishant-delegation.md)
 
 ## 📂 Full individual execution:
 *to execute the tasks mentioned in the delegation files.*
-* **Harsh:** See [individual-execution/harsh-execution.md](individual-execution/harsh-execution.md)
-* **Nishant:** See [individual-execution/nishant-execution.md](individual-execution/nishant-execution.md)
+* **Harsh:** See [6-docs/individual-execution/harsh-execution.md](6-docs/individual-execution/harsh-execution.md)
+* **Nishant:** See [6-docs/individual-execution/nishant-execution.md](6-docs/individual-execution/nishant-execution.md)
 
 ## 📂 Overall delegation:   
 
