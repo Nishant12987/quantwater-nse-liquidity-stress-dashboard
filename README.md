@@ -49,4 +49,4 @@ Run this command in your Colab Notebook to enable GPU-accelerated modeling:
 ```
 
 ## 📂 Project Narrative
-See [docs/1-project.md](docs/1-project.md) for the full project vision.
+See [6-docs/1-project.md](6-docs/1-project.md) for the full project vision.
