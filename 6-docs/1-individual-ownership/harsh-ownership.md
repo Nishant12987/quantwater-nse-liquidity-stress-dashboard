@@ -2,6 +2,10 @@
 **Role:** Validation & Microstructure Specialist (Validation Pillar)  
 **Focus:** Microstructure Analysis, Model Robustness, EDA, and Dashboard UI/UX (Hybrid-Lean Workflow).
 
+## 📂 Full individual execution:
+*to execute the tasks mentioned below check:* [2-individual-execution/harsh-execution.md](../2-individual-execution/harsh-execution.md)
+
+## Tasks:
 | Week | Task Description | Deliverable |
 | :--- | :--- | :--- |
 | **W1** | **Data Integrity & PIT Audit (Local/Lean):** Audit raw NSE Bhavcopy data for "Point-in-Time" integrity. Handle ticker mapping and corporate actions (splits/bonus) locally to ensure the backtest is free of data leakage. | Cleaned Master Stock Database. |

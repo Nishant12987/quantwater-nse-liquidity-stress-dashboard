@@ -2,6 +2,10 @@
 **Role:** Architecture & Deployment Specialist (Machine Pillar)  
 **Focus:** ML Engineering, Data Ingestion, and Dashboard Deployment (Hybrid-Lean Workflow).
 
+## 📂 Full individual execution:
+*to execute the tasks mentioned below check:* [2-individual-execution/nishant-execution.md](../2-individual-execution/nishant-execution.md)
+
+## Tasks:
 | Week | Task Description | Deliverable |
 | :--- | :--- | :--- |
 | **W1** | **Bhavcopy Scraper Automation (Local/Lean):** Develop the automated scraper for NSE Bhavcopy (2021–2026). Setup the **Google Drive Bridge** for persistent data storage and team synchronization. | Automated Data Pipeline + Drive Sync. |

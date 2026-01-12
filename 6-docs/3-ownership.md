@@ -1,16 +1,16 @@
-# **3-delegation.md**
+# **Ownership.md**
 *Co-lead task allocation and responsibilities for the NSE Liquidity Dashboard (Hybrid-Lean Workflow).*
 
-## 📂 Full individual delegation:
-* **Harsh:** See [individual-delegation/harsh-delegation.md](individual-delegation/harsh-delegation.md)
-* **Nishant:** See [individual-delegation/nishant-delegation.md](individual-delegation/nishant-delegation.md)
+## 📂 Full individual ownership:
+* **Harsh:** See [individual-ownership/harsh-ownership.md](1-individual-ownership/harsh-ownership.md)
+* **Nishant:** See [individual-ownership/nishant-ownership.md](1-individual-ownership/nishant-ownership.md)
 
 ## 📂 Full individual execution:
-*to execute the tasks mentioned in the delegation files.*
-* **Harsh:** See [individual-execution/harsh-execution.md](individual-execution/harsh-execution.md)
-* **Nishant:** See [individual-execution/nishant-execution.md](individual-execution/nishant-execution.md)
+*to execute the tasks mentioned in the ownership files.*
+* **Harsh:** See [individual-execution/harsh-execution.md](2-individual-execution/harsh-execution.md)
+* **Nishant:** See [individual-execution/nishant-execution.md](2-individual-execution/nishant-execution.md)
 
-## 📂 Overall delegation:   
+## 📂 Overall ownership:   
 
 #### **Week 1: Bhavcopy Automation & Pipeline Setup — [Local/Lean]**
 *   **Nishant:** Develop the automated scraper for NSE Bhavcopy (2021–2026). Set up the **Google Drive Bridge** for persistent data storage and team sync.

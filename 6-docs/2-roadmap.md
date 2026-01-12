@@ -1,4 +1,4 @@
-# **2-overview.md**
+# **Roadmap.md**
 *High-level strategic roadmap for the NSE Liquidity Stress Prediction Dashboard (Hybrid-Lean Workflow).*
 
 ---
@@ -55,5 +55,5 @@ To maximize performance and save **3GB+ of local disk space**, this roadmap util
 
 #### **Week 10: EXAM BREAK (No Work)**
 
-## 📂 Next Step: Project Delegation
-See [3-delegation.md](3-delegation.md) for the Harsh & Nishant task breakdown and infrastructure syncs.
+## 📂 Next Step: Project Ownership
+See [3-ownership.md](3-ownership.md) for the Harsh & Nishant task breakdown and infrastructure syncs.

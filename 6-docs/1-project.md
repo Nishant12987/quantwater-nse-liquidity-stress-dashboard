@@ -62,4 +62,4 @@ This is a light-mid-intensity 10-week sprint supported by **Cloud Infrastructure
 **Welcome to the Liquidity Dashboard team. Let’s build the future of market microstructure monitoring.**
 
 ## 📂 Next Step: Project Overview
-See [2.overview.md](2.overview.md) for the full project roadmap and compute split.
+See [2-roadmap.md](2-roadmap.md) for the full project roadmap and compute split.
