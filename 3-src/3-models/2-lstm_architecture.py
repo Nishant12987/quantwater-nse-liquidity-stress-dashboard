@@ -43,12 +43,15 @@ df = df.merge(labels, on="DATE", how="inner")
 
 
 # -------------------------------------------------
-# Feature Engineering
+# Feature Engineering (PIT SAFE FIX APPLIED)
 # -------------------------------------------------
 
+rolling_mean = df["MARKET_AMIHUD"].rolling(60).mean().shift(1)
+rolling_std = df["MARKET_AMIHUD"].rolling(60).std().shift(1)
+
 df["MARKET_AMIHUD_Z"] = (
-    (df["MARKET_AMIHUD"] - df["MARKET_AMIHUD"].rolling(60).mean())
-    / df["MARKET_AMIHUD"].rolling(60).std()
+    (df["MARKET_AMIHUD"] - rolling_mean)
+    / rolling_std
 )
 
 FEATURES = [
