@@ -1,8 +1,12 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent))
 import pandas as pd
 import streamlit as st
 from pathlib import Path
 
-from .stress_detector import StressDetector
+from stress_detector import StressDetector
 
 
 BASE = Path(__file__).resolve().parents[2]
