@@ -17,7 +17,7 @@ sys.path.append(str(BASE / "3-src/4-ensemble"))
 import pandas as pd
 import streamlit as st
 
-from stress_detector import StressDetector
+from 3-src.4-ensemble.stress_detector import StressDetector
 
 
 # =========================
