@@ -1,15 +1,23 @@
+import sys
 from pathlib import Path
 import pandas as pd
 import streamlit as st
-
-from stress_detector import StressDetector
+import importlib.util
 
 
 # =========================
-# BASE PATH
+# LOAD stress_detector (SPECIAL FIX)
 # =========================
 
 BASE = Path(__file__).resolve().parents[2]
+
+stress_path = BASE / "3-src/4-ensemble/1-stress_detector.py"
+
+spec = importlib.util.spec_from_file_location("stress_detector", stress_path)
+stress_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(stress_module)
+
+StressDetector = stress_module.StressDetector
 
 
 # =========================
@@ -57,7 +65,7 @@ def compute_market_signal(results):
 
 
 # =========================
-# SECTOR HEATMAP
+# HEATMAP
 # =========================
 
 def compute_sector_heatmap(results):
