@@ -1,16 +1,28 @@
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
+# =========================
+# PATH FIX (IMPORTANT)
+# =========================
+
+BASE = Path(__file__).resolve().parents[2]
+
+sys.path.append(str(BASE / "3-src/4-ensemble"))
+
+
+# =========================
+# IMPORTS
+# =========================
+
 import pandas as pd
 import streamlit as st
-from pathlib import Path
 
 from stress_detector import StressDetector
 
 
-BASE = Path(__file__).resolve().parents[2]
-
+# =========================
+# DATA LOADING
+# =========================
 
 @st.cache_data
 def load_data():
@@ -21,12 +33,20 @@ def load_data():
     return df
 
 
+# =========================
+# MODEL INFERENCE
+# =========================
+
 @st.cache_data
 def run_inference(df):
     detector = StressDetector(BASE)
     results = detector.detect(df)
     return results
 
+
+# =========================
+# MARKET SIGNAL
+# =========================
 
 def compute_market_signal(results):
 
@@ -44,6 +64,10 @@ def compute_market_signal(results):
     return daily
 
 
+# =========================
+# HEATMAP DATA
+# =========================
+
 def compute_sector_heatmap(results):
 
     results["SECTOR"] = results["SYMBOL"].str[:2]
@@ -57,6 +81,10 @@ def compute_sector_heatmap(results):
     return heatmap
 
 
+# =========================
+# STATUS LOGIC
+# =========================
+
 def get_latest_status(market_signal):
 
     latest = market_signal.iloc[-1]["MARKET_STRESS"]
@@ -68,6 +96,10 @@ def get_latest_status(market_signal):
     else:
         return "RED", latest
 
+
+# =========================
+# PIPELINE
+# =========================
 
 def backend_pipeline():
 
