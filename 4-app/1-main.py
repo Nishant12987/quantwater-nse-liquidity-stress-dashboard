@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 # =========================
-# ADD ENSEMBLE PATH
+# ADD BACKEND PATH
 # =========================
 
 BASE = Path(__file__).resolve().parents[1]
@@ -12,7 +12,7 @@ sys.path.append(str(BASE / "3-src/4-ensemble"))
 
 
 # =========================
-# IMPORT
+# IMPORT BACKEND
 # =========================
 
 from dashboard_backend import backend_pipeline
@@ -36,7 +36,7 @@ data = backend_pipeline()
 
 
 # =========================
-# UI (TEST)
+# UI
 # =========================
 
 st.title("Liquidity Risk Dashboard")
