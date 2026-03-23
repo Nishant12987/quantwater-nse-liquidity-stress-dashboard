@@ -1,24 +1,15 @@
-import sys
 from pathlib import Path
-
-# =========================
-# PATH FIX (FINAL)
-# =========================
-
-BASE = Path(__file__).resolve().parents[2]
-
-ENSEMBLE_PATH = BASE / "3-src/4-ensemble"
-sys.path.insert(0, str(ENSEMBLE_PATH))
-
-
-# =========================
-# IMPORTS
-# =========================
-
 import pandas as pd
 import streamlit as st
 
 from stress_detector import StressDetector
+
+
+# =========================
+# BASE PATH
+# =========================
+
+BASE = Path(__file__).resolve().parents[2]
 
 
 # =========================
