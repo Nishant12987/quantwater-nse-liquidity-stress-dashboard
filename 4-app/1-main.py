@@ -1,14 +1,21 @@
-# Dashboard Entry Point
 import streamlit as st
 import sys
 from pathlib import Path
 
 
 # =========================
-# CONNECT BACKEND
+# PATH FIX (IMPORTANT)
 # =========================
 
-sys.path.append(str(Path(__file__).resolve().parents[1] / "3-src/4-ensemble"))
+BASE = Path(__file__).resolve().parents[1]
+
+# add ensemble folder
+sys.path.append(str(BASE / "3-src/4-ensemble"))
+
+
+# =========================
+# IMPORT AFTER PATH FIX
+# =========================
 
 from dashboard_backend import backend_pipeline
 
@@ -31,7 +38,7 @@ data = backend_pipeline()
 
 
 # =========================
-# TEST OUTPUT (STEP 2)
+# UI (TEMP TEST)
 # =========================
 
 st.title("Liquidity Risk Dashboard")
