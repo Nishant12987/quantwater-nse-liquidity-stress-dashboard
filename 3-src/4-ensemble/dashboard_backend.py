@@ -2,12 +2,13 @@ import sys
 from pathlib import Path
 
 # =========================
-# PATH FIX (IMPORTANT)
+# PATH FIX (FINAL)
 # =========================
 
 BASE = Path(__file__).resolve().parents[2]
 
-sys.path.append(str(BASE / "3-src/4-ensemble"))
+ENSEMBLE_PATH = BASE / "3-src/4-ensemble"
+sys.path.insert(0, str(ENSEMBLE_PATH))
 
 
 # =========================
@@ -17,7 +18,7 @@ sys.path.append(str(BASE / "3-src/4-ensemble"))
 import pandas as pd
 import streamlit as st
 
-from 3-src.4-ensemble.stress_detector import StressDetector
+from stress_detector import StressDetector
 
 
 # =========================
@@ -65,7 +66,7 @@ def compute_market_signal(results):
 
 
 # =========================
-# HEATMAP DATA
+# SECTOR HEATMAP
 # =========================
 
 def compute_sector_heatmap(results):
