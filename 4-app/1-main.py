@@ -4,22 +4,25 @@ from pathlib import Path
 
 
 # =========================
-# ADD BACKEND PATH
+# FORCE ADD PROJECT PATHS
 # =========================
 
-BASE = Path(__file__).resolve().parents[1]
-sys.path.append(str(BASE / "3-src/4-ensemble"))
+ROOT = Path(__file__).resolve().parents[1]
+
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "3-src"))
+sys.path.insert(0, str(ROOT / "3-src/4-ensemble"))
 
 
 # =========================
-# IMPORT BACKEND
+# IMPORT AFTER PATH FIX
 # =========================
 
 from dashboard_backend import backend_pipeline
 
 
 # =========================
-# PAGE CONFIG
+# APP
 # =========================
 
 st.set_page_config(
@@ -27,17 +30,7 @@ st.set_page_config(
     layout="wide"
 )
 
-
-# =========================
-# RUN BACKEND
-# =========================
-
 data = backend_pipeline()
-
-
-# =========================
-# UI
-# =========================
 
 st.title("Liquidity Risk Dashboard")
 
