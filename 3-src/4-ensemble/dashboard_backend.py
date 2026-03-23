@@ -2,22 +2,21 @@ import sys
 from pathlib import Path
 import pandas as pd
 import streamlit as st
-import importlib.util
 
 
 # =========================
-# LOAD stress_detector (SPECIAL FIX)
+# PATH FIX
 # =========================
 
 BASE = Path(__file__).resolve().parents[2]
+sys.path.append(str(BASE / "3-src/4-ensemble"))
 
-stress_path = BASE / "3-src/4-ensemble/1-stress_detector.py"
 
-spec = importlib.util.spec_from_file_location("stress_detector", stress_path)
-stress_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(stress_module)
+# =========================
+# IMPORT
+# =========================
 
-StressDetector = stress_module.StressDetector
+from stress_detector import StressDetector
 
 
 # =========================
