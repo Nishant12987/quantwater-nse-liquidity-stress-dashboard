@@ -1,10 +1,9 @@
-# UI elements (Heatmaps, Gauges)
 import streamlit as st
 import pandas as pd
 
 
 # =========================
-# LIQUIDITY GAUGE
+# GAUGE
 # =========================
 
 def liquidity_gauge(status, stress_value):
@@ -33,13 +32,16 @@ def liquidity_gauge(status, stress_value):
 
 
 # =========================
-# STRESS TREND
+# TREND
 # =========================
 
 def stress_trend_chart(df):
     st.subheader("📈 Market Stress Trend")
 
+    df["DATE"] = pd.to_datetime(df["DATE"])
+
     trend = df.groupby("DATE")["PRED_STRESS"].mean()
+
     st.line_chart(trend)
 
 
@@ -56,11 +58,11 @@ def top_risky_stocks(df):
 
 
 # =========================
-# SECTOR HEATMAP (SIMPLE VERSION)
+# HEATMAP (BAR VERSION)
 # =========================
 
 def sector_heatmap(df):
-    st.subheader("🔥 Sector Heatmap (Proxy)")
+    st.subheader("🔥 Stress Distribution")
 
     heatmap = df.groupby("SYMBOL")["PRED_STRESS"].mean().sort_values(ascending=False).head(20)
 
