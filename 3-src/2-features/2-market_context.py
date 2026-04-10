@@ -14,14 +14,18 @@ No ML libraries. Lean, vectorized, PIT-safe.
 
 import pandas as pd
 from pathlib import Path
+import os
 
 
 # =========================
-# PATHS
+# PATHS (FIXED)
 # =========================
 
-FEATURES_PATH = Path("/content/data/NSE_Liquidity_Project/features")
+BASE = Path(os.getcwd())
+
+FEATURES_PATH = BASE / "data/processed"
 OUTPUT_PATH = FEATURES_PATH
+
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 
@@ -31,8 +35,12 @@ OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 def load_amihud() -> pd.DataFrame:
     path = FEATURES_PATH / "amihud.csv"
+
     if not path.exists():
-        raise FileNotFoundError("amihud.csv not found. Run 1-liquidity_metrics.py first.")
+        raise FileNotFoundError(
+            f"amihud.csv not found at {path}. Run liquidity_metrics.py first."
+        )
+
     return pd.read_csv(path, parse_dates=["DATE"])
 
 
@@ -67,11 +75,14 @@ def compute_liquidity_commonality(
     merged = df.merge(market, on="DATE", how="inner")
 
     results = []
+
     for symbol, g in merged.groupby("SYMBOL"):
+
         if g["AMIHUD"].notna().sum() < 30:
             continue  # insufficient observations
 
         corr = g["AMIHUD"].corr(g["MARKET_AMIHUD"])
+
         results.append({
             "SYMBOL": symbol,
             "LIQUIDITY_COMMONALITY": corr
@@ -96,7 +107,7 @@ def build_market_context():
     commonality = compute_liquidity_commonality(df, market)
     commonality.to_csv(OUTPUT_PATH / "liquidity_commonality.csv", index=False)
 
-    print("Market context features saved successfully.")
+    print("✅ Market context features saved successfully at:", OUTPUT_PATH)
 
 
 if __name__ == "__main__":
