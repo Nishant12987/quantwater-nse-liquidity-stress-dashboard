@@ -2,11 +2,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 import joblib
-
-# ✅ FIX: add this block
-import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+import os
 
 from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
@@ -14,16 +10,14 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
 
-import config
-
 
 # -------------------------------------------------
-# Paths
+# Paths (FIXED — no config dependency)
 # -------------------------------------------------
 
-BASE = Path(config.ROOT_PATH)
-FEATURES_DIR = Path(config.DATA_PROCESSED)
-MODEL_DIR = Path(config.MODEL_CHECKPOINTS)
+BASE = Path(os.getcwd())
+FEATURES_DIR = BASE / "data/processed"
+MODEL_DIR = BASE / "models/checkpoints"
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 
