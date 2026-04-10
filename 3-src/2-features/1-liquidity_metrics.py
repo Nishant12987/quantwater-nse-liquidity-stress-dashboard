@@ -14,14 +14,18 @@ Amihud (2002), Roll (1984)
 import pandas as pd
 import numpy as np
 from pathlib import Path
+import os
 
 
 # =========================
-# CONFIG
+# CONFIG (FIXED)
 # =========================
 
-BASE_DATA_PATH = Path("/content/data/NSE_Liquidity_Project/bhavcopy_raw")
-OUTPUT_PATH = Path("/content/data/NSE_Liquidity_Project/features")
+BASE = Path(os.getcwd())
+
+BASE_DATA_PATH = BASE / "data/raw"
+OUTPUT_PATH = BASE / "data/processed"
+
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
 ROLL_WINDOW_MIN = 30  # minimum observations for Roll spread
@@ -33,13 +37,26 @@ ROLL_WINDOW_MIN = 30  # minimum observations for Roll spread
 
 def load_raw_data() -> pd.DataFrame:
     dfs = []
+
+    if not BASE_DATA_PATH.exists():
+        raise FileNotFoundError(
+            f"Raw data folder not found at {BASE_DATA_PATH}. Run ingestion first."
+        )
+
     for year_dir in BASE_DATA_PATH.iterdir():
         if not year_dir.is_dir():
             continue
+
         for csv in year_dir.glob("*.csv"):
-            df = pd.read_csv(csv)
-            df["DATE"] = pd.to_datetime(df["TIMESTAMP"])
-            dfs.append(df)
+            try:
+                df = pd.read_csv(csv)
+                df["DATE"] = pd.to_datetime(df["TIMESTAMP"])
+                dfs.append(df)
+            except Exception as e:
+                print(f"Skipping {csv}: {e}")
+
+    if not dfs:
+        raise ValueError("No CSV files found in raw data folder.")
 
     df_all = pd.concat(dfs, ignore_index=True)
 
@@ -132,7 +149,7 @@ def build_liquidity_metrics():
     roll = compute_roll_spread(df)
     roll.to_csv(OUTPUT_PATH / "roll_spread.csv", index=False)
 
-    print("Liquidity metrics saved successfully.")
+    print("✅ Liquidity metrics saved successfully at:", OUTPUT_PATH)
 
 
 if __name__ == "__main__":
