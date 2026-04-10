@@ -25,7 +25,7 @@ from dashboard_backend import backend_pipeline
 st.set_page_config(page_title="Liquidity Risk Terminal", layout="wide")
 
 # =========================
-# PREMIUM CSS
+# CSS (IMPROVED)
 # =========================
 
 st.markdown("""
@@ -37,10 +37,9 @@ body { background-color: #0e1117; color: white; }
 }
 
 .card {
-    background-color: #1c1f26;
     padding: 18px;
     border-radius: 12px;
-    margin-bottom: 15px;
+    text-align: center;
 }
 
 .metric-title {
@@ -49,14 +48,14 @@ body { background-color: #0e1117; color: white; }
 }
 
 .metric-value {
-    font-size: 28px;
+    font-size: 26px;
     font-weight: bold;
 }
 
 .section-title {
     font-size: 18px;
+    margin-top: 20px;
     margin-bottom: 10px;
-    margin-top: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -90,12 +89,12 @@ df["DATE"] = pd.to_datetime(df["DATE"])
 latest_df = df.sort_values("DATE").groupby("SYMBOL").tail(1)
 
 # =========================
-# SECTOR MAP
+# EXPANDED SECTOR MAP
 # =========================
 
 sector_map = {
     "HDFCBANK": "Banking", "ICICIBANK": "Banking", "SBIN": "Banking",
-    "AXISBANK": "Banking",
+    "AXISBANK": "Banking", "KOTAKBANK": "Banking",
 
     "TCS": "IT", "INFY": "IT", "WIPRO": "IT", "HCLTECH": "IT",
 
@@ -104,7 +103,11 @@ sector_map = {
 
     "BHARTIARTL": "Telecom", "IDEA": "Telecom",
 
-    "TATAMOTORS": "Auto", "MARUTI": "Auto"
+    "TATAMOTORS": "Auto", "MARUTI": "Auto",
+
+    "ITC": "FMCG", "HINDUNILVR": "FMCG",
+    "LT": "Infra", "ULTRACEMCO": "Infra",
+    "BAJFINANCE": "NBFC"
 }
 
 latest_df["SECTOR"] = latest_df["SYMBOL"].map(sector_map).fillna("Other")
@@ -136,8 +139,16 @@ if portfolio_df["WEIGHT"].sum() > 0:
 portfolio_df = portfolio_df.merge(latest_df, on="SYMBOL", how="left")
 
 # =========================
-# KPI CARDS
+# KPI CARDS (UPGRADED)
 # =========================
+
+def kpi_card(title, value, color):
+    st.markdown(f"""
+    <div class="card" style="background-color:{color};">
+        <div class="metric-title">{title}</div>
+        <div class="metric-value">{value}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 status = data.get("status", "UNKNOWN")
 value = data.get("value", 0)
@@ -145,32 +156,14 @@ alerts = int(portfolio_df["PRED_STRESS"].sum())
 
 col1, col2, col3 = st.columns(3)
 
-with col1:
-    st.markdown(f"""
-    <div class="card">
-        <div class="metric-title">Market Status</div>
-        <div class="metric-value">{status}</div>
-    </div>
-    """, unsafe_allow_html=True)
+kpi_card("Market Status", status,
+         "#1f7a3e" if status=="GREEN" else "#a67c00" if status=="AMBER" else "#8b0000")
 
-with col2:
-    st.markdown(f"""
-    <div class="card">
-        <div class="metric-title">Portfolio Stress</div>
-        <div class="metric-value">{value:.4f}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col3:
-    st.markdown(f"""
-    <div class="card">
-        <div class="metric-title">Stocks in Stress</div>
-        <div class="metric-value">{alerts}</div>
-    </div>
-    """, unsafe_allow_html=True)
+kpi_card("Portfolio Stress", round(value,4), "#2c2f38")
+kpi_card("Stress Alerts", alerts, "#2c2f38")
 
 # =========================
-# GAUGE
+# HERO GAUGE (CENTERED)
 # =========================
 
 fig = go.Figure(go.Indicator(
@@ -188,7 +181,9 @@ fig = go.Figure(go.Indicator(
     }
 ))
 
-st.plotly_chart(fig, use_container_width=True)
+col_g1, col_g2, col_g3 = st.columns([1,2,1])
+with col_g2:
+    st.plotly_chart(fig, use_container_width=True)
 
 # =========================
 # TREND
@@ -197,7 +192,6 @@ st.plotly_chart(fig, use_container_width=True)
 st.markdown('<div class="section-title">📈 Portfolio Trend</div>', unsafe_allow_html=True)
 
 trend_list = []
-
 for s, w in zip(portfolio_df["SYMBOL"], portfolio_df["WEIGHT"]):
     temp = df[df["SYMBOL"] == s].copy()
     temp["W"] = temp["PRED_PROBA"] * w
@@ -223,6 +217,26 @@ sector = (
 )
 
 fig = px.bar(sector, x="SECTOR", y="RISK", color="RISK")
+st.plotly_chart(fig, use_container_width=True)
+
+# =========================
+# RISK BREAKDOWN (NEW 🔥)
+# =========================
+
+st.markdown("### 🔍 Risk Breakdown")
+
+top5 = portfolio_df.sort_values("PRED_PROBA", ascending=False).head(5)
+
+fig = px.bar(top5, x="SYMBOL", y="PRED_PROBA", color="PRED_PROBA")
+st.plotly_chart(fig, use_container_width=True)
+
+# =========================
+# PORTFOLIO ALLOCATION (NEW 🔥)
+# =========================
+
+st.markdown("### 📦 Portfolio Allocation")
+
+fig = px.pie(portfolio_df, names="SYMBOL", values="WEIGHT")
 st.plotly_chart(fig, use_container_width=True)
 
 # =========================
