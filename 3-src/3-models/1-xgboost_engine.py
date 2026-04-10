@@ -10,7 +10,10 @@ from xgboost import XGBClassifier
 
 
 BASE = Path(os.getcwd())
-FEATURES_DIR = BASE / "features"
+
+# ✅ FIXED PATH
+FEATURES_DIR = BASE / "data/processed"
+
 MODEL_DIR = BASE / "models" / "checkpoints"
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -67,7 +70,8 @@ model = XGBClassifier(
     objective="binary:logistic",
     eval_metric="logloss",
     tree_method="hist",
-    device="cuda",
+    # ❌ REMOVED CUDA (Colab safe)
+    # device="cuda",
     n_estimators=300,
     max_depth=4,
     learning_rate=0.05,
