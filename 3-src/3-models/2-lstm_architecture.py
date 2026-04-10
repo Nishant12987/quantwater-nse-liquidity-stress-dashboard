@@ -3,6 +3,11 @@ import pandas as pd
 from pathlib import Path
 import joblib
 
+# ✅ FIX: add this block
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
 from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
