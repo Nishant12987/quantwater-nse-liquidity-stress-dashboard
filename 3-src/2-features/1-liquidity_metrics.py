@@ -23,8 +23,8 @@ import os
 
 BASE = Path(os.getcwd())
 
-BASE_DATA_PATH = BASE / "data/raw"
-OUTPUT_PATH = BASE / "data/processed"
+BASE_DATA_PATH = BASE / "data" / "raw"
+OUTPUT_PATH = BASE / "data" / "processed"
 
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
