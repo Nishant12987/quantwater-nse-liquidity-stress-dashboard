@@ -5,7 +5,7 @@ import pandas as pd
 import importlib.util
 
 # =========================
-# FORCE ADD PROJECT PATHS
+# PATH SETUP
 # =========================
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT / "3-src/4-ensemble"))
 from dashboard_backend import backend_pipeline
 
 # =========================
-# DYNAMIC IMPORT FOR 2-components.py
+# DYNAMIC IMPORT (NO RENAME NEEDED)
 # =========================
 
 components_path = ROOT / "4-app" / "2-components.py"
@@ -57,7 +57,6 @@ st.markdown("Backend Connected Successfully")
 # =========================
 
 data = backend_pipeline()
-
 df = pd.read_csv("models/checkpoints/xgboost_full_predictions.csv")
 
 # =========================
@@ -66,17 +65,11 @@ df = pd.read_csv("models/checkpoints/xgboost_full_predictions.csv")
 
 col1, col2 = st.columns([1, 2])
 
-# LEFT → GAUGE
 with col1:
     liquidity_gauge(data.get("status", "UNKNOWN"), data.get("value", 0))
 
-# RIGHT → TREND
 with col2:
     stress_trend_chart(df)
-
-# =========================
-# LOWER SECTION
-# =========================
 
 col3, col4 = st.columns(2)
 
