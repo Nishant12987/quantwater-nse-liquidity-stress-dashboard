@@ -104,7 +104,7 @@ def build_sequences(df, features, lookback):
     targets = df["STRESS_LABEL"].values
 
     for i in range(lookback, len(df)):
-        X.append(values[i-lookback:i])
+        X.append(values[i - lookback:i])
         y.append(targets[i])
 
     return np.array(X), np.array(y)
