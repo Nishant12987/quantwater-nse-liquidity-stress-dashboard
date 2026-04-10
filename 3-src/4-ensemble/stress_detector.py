@@ -1,4 +1,3 @@
-# (Combining XGB + LSTM outputs)
 import joblib
 import numpy as np
 import pandas as pd
@@ -22,6 +21,11 @@ class StressDetector:
 
         self.lstm_model = tf.keras.models.load_model(
             self.base / "models/checkpoints/lstm_stress_forecaster.keras"
+        )
+
+        # ✅ LOAD SCALER
+        self.scaler = joblib.load(
+            self.base / "models/checkpoints/lstm_scaler.pkl"
         )
 
         self.features = [
@@ -59,11 +63,16 @@ class StressDetector:
 
     def run_lstm(self, df):
 
-        X_lstm = self.prepare_lstm_sequences(df)
+        df_scaled = df.copy()
 
-        prob = self.lstm_model.predict(X_lstm).flatten()
+        # ✅ APPLY SAME SCALER
+        df_scaled[self.features] = self.scaler.transform(df[self.features])
 
-        return prob
+        X_lstm = self.prepare_lstm_sequences(df_scaled)
+
+        pred = self.lstm_model.predict(X_lstm).flatten()
+
+        return pred
 
 
     def detect(self, df):
@@ -72,20 +81,23 @@ class StressDetector:
 
         xgb_prob, xgb_pred = self.run_xgboost(df)
 
-        lstm_prob = self.run_lstm(df)
+        lstm_pred = self.run_lstm(df)
 
         xgb_pred_aligned = xgb_pred[self.lookback:]
 
+        # ✅ NEW REGRESSION-BASED THRESHOLD
+        lstm_threshold = np.mean(lstm_pred) + 2 * np.std(lstm_pred)
+
         critical_alert = (
             (xgb_pred_aligned == 1) &
-            (lstm_prob > 0.5)
+            (lstm_pred > lstm_threshold)
         ).astype(int)
 
         results = df.iloc[self.lookback:].copy()
 
         results["XGB_PROB"] = xgb_prob[self.lookback:]
         results["XGB_STRESS"] = xgb_pred[self.lookback:]
-        results["LSTM_PROB"] = lstm_prob
+        results["LSTM_SCORE"] = lstm_pred
         results["CRITICAL_ALERT"] = critical_alert
 
         return results
@@ -93,7 +105,7 @@ class StressDetector:
 
 if __name__ == "__main__":
 
-    BASE = "/content/data/NSE_Liquidity_Project"
+    BASE = "."
 
     data = pd.read_csv(
         Path(BASE) / "models/checkpoints/xgboost_full_predictions.csv",
@@ -105,5 +117,4 @@ if __name__ == "__main__":
     results = detector.detect(data)
 
     print("Total Critical Alerts:", results["CRITICAL_ALERT"].sum())
-
     print(results.head())
