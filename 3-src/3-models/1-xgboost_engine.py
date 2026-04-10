@@ -8,7 +8,7 @@ from sklearn.metrics import precision_score, classification_report
 from xgboost import XGBClassifier
 
 
-BASE = Path("/content/data/NSE_Liquidity_Project")
+BASE = Path(os.getcwd())
 FEATURES_DIR = BASE / "features"
 MODEL_DIR = BASE / "models" / "checkpoints"
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
