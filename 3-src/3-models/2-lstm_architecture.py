@@ -1,22 +1,24 @@
 import numpy as np
 import pandas as pd
 from pathlib import Path
+import joblib
+
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, precision_score, recall_score
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
+
+import config
 
 
 # -------------------------------------------------
 # Paths
 # -------------------------------------------------
 
-BASE = Path("/content/data/NSE_Liquidity_Project")
-FEATURES_DIR = BASE / "features"
-MODEL_DIR = BASE / "models" / "checkpoints"
+BASE = Path(config.ROOT_PATH)
+FEATURES_DIR = Path(config.DATA_PROCESSED)
+MODEL_DIR = Path(config.MODEL_CHECKPOINTS)
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -43,15 +45,14 @@ df = df.merge(labels, on="DATE", how="inner")
 
 
 # -------------------------------------------------
-# Feature Engineering (PIT SAFE FIX APPLIED)
+# Feature Engineering (PIT SAFE)
 # -------------------------------------------------
 
 rolling_mean = df["MARKET_AMIHUD"].rolling(60).mean().shift(1)
 rolling_std = df["MARKET_AMIHUD"].rolling(60).std().shift(1)
 
 df["MARKET_AMIHUD_Z"] = (
-    (df["MARKET_AMIHUD"] - rolling_mean)
-    / rolling_std
+    (df["MARKET_AMIHUD"] - rolling_mean) / rolling_std
 )
 
 FEATURES = [
@@ -63,69 +64,75 @@ FEATURES = [
 
 df = df.dropna(subset=FEATURES + ["STRESS_LABEL"]).copy()
 
-# Remove infinities
 df[FEATURES] = df[FEATURES].replace([np.inf, -np.inf], np.nan)
 df = df.dropna(subset=FEATURES)
-
-# Scale features
-scaler = StandardScaler()
-df[FEATURES] = scaler.fit_transform(df[FEATURES])
 
 df = df.sort_values("DATE")
 
 
 # -------------------------------------------------
-# Build Sequences (10-day lookback)
+# TRAIN / TEST SPLIT FIRST (NO LEAKAGE)
+# -------------------------------------------------
+
+split_index = int(len(df) * 0.75)
+
+train_df = df.iloc[:split_index].copy()
+test_df = df.iloc[split_index:].copy()
+
+
+# -------------------------------------------------
+# SCALING (FIT ONLY ON TRAIN)
+# -------------------------------------------------
+
+scaler = StandardScaler()
+
+train_df.loc[:, FEATURES] = scaler.fit_transform(train_df[FEATURES])
+test_df.loc[:, FEATURES] = scaler.transform(test_df[FEATURES])
+
+# Save scaler
+joblib.dump(scaler, MODEL_DIR / "lstm_scaler.pkl")
+
+
+# -------------------------------------------------
+# BUILD SEQUENCES
 # -------------------------------------------------
 
 LOOKBACK = 10
 
-X_sequences = []
-y_sequences = []
+def build_sequences(df, features, lookback):
+    X, y = [], []
+    values = df[features].values
+    targets = df["STRESS_LABEL"].values
 
-values = df[FEATURES].values
-targets = df["STRESS_LABEL"].values
+    for i in range(lookback, len(df)):
+        X.append(values[i-lookback:i])
+        y.append(targets[i])
 
-for i in range(LOOKBACK, len(df)):
-    X_sequences.append(values[i-LOOKBACK:i])
-    y_sequences.append(targets[i])
-
-X = np.array(X_sequences)
-y = np.array(y_sequences)
-
-print("X shape:", X.shape)
-print("y shape:", y.shape)
+    return np.array(X), np.array(y)
 
 
-# -------------------------------------------------
-# Train / Test Split (Time Series Safe)
-# -------------------------------------------------
+X_train, y_train = build_sequences(train_df, FEATURES, LOOKBACK)
+X_test, y_test = build_sequences(test_df, FEATURES, LOOKBACK)
 
-split_index = int(len(X) * 0.75)
 
-X_train = X[:split_index]
-X_test = X[split_index:]
-y_train = y[:split_index]
-y_test = y[split_index:]
+print("X_train:", X_train.shape)
+print("X_test:", X_test.shape)
 
 
 # -------------------------------------------------
-# LSTM Model
+# LSTM MODEL (REGRESSION)
 # -------------------------------------------------
 
 model = Sequential([
     LSTM(32, input_shape=(LOOKBACK, len(FEATURES))),
     Dropout(0.2),
-    Dense(1, activation="sigmoid")
+    Dense(1, activation="linear")
 ])
 
 model.compile(
     optimizer=Adam(learning_rate=0.001),
-    loss="binary_crossentropy",
-    metrics=[
-        tf.keras.metrics.Precision(name="precision"),
-        tf.keras.metrics.Recall(name="recall")
-    ]
+    loss="mse",
+    metrics=["mae"]
 )
 
 model.fit(
@@ -139,21 +146,11 @@ model.fit(
 
 
 # -------------------------------------------------
-# Evaluation
-# -------------------------------------------------
-
-y_prob = model.predict(X_test).flatten()
-y_pred = (y_prob > 0.5).astype(int)
-
-print("Precision:", precision_score(y_test, y_pred))
-print("Recall:", recall_score(y_test, y_pred))
-print(classification_report(y_test, y_pred))
-
-
-# -------------------------------------------------
-# Save Model (Modern Keras Format)
+# SAVE MODEL
 # -------------------------------------------------
 
 model.save(
     MODEL_DIR / "lstm_stress_forecaster.keras"
 )
+
+print("LSTM model + scaler saved successfully.")
