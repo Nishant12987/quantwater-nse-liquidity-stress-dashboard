@@ -2,6 +2,7 @@ import streamlit as st
 import sys
 from pathlib import Path
 import pandas as pd
+import importlib.util
 
 # =========================
 # FORCE ADD PROJECT PATHS
@@ -14,11 +15,26 @@ sys.path.insert(0, str(ROOT / "3-src"))
 sys.path.insert(0, str(ROOT / "3-src/4-ensemble"))
 
 # =========================
-# IMPORTS
+# IMPORT BACKEND
 # =========================
 
 from dashboard_backend import backend_pipeline
-from components import liquidity_gauge, stress_trend_chart, top_risky_stocks, sector_heatmap
+
+# =========================
+# DYNAMIC IMPORT FOR 2-components.py
+# =========================
+
+components_path = ROOT / "4-app" / "2-components.py"
+
+spec = importlib.util.spec_from_file_location("components", components_path)
+components = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(components)
+
+# Extract functions
+liquidity_gauge = components.liquidity_gauge
+stress_trend_chart = components.stress_trend_chart
+top_risky_stocks = components.top_risky_stocks
+sector_heatmap = components.sector_heatmap
 
 # =========================
 # CONFIG
@@ -37,26 +53,12 @@ st.title("📊 Liquidity Risk Dashboard")
 st.markdown("Backend Connected Successfully")
 
 # =========================
-# LOAD BACKEND DATA
+# LOAD DATA
 # =========================
 
-try:
-    data = backend_pipeline()
-    st.write("DEBUG backend:", data)
-except Exception as e:
-    st.error(f"Backend Error: {e}")
-    data = None
+data = backend_pipeline()
 
-# =========================
-# LOAD MODEL DATA
-# =========================
-
-try:
-    df = pd.read_csv("models/checkpoints/xgboost_full_predictions.csv")
-    st.write("DEBUG df shape:", df.shape)
-except Exception as e:
-    st.error(f"CSV Load Error: {e}")
-    df = None
+df = pd.read_csv("models/checkpoints/xgboost_full_predictions.csv")
 
 # =========================
 # LAYOUT
@@ -64,36 +66,13 @@ except Exception as e:
 
 col1, col2 = st.columns([1, 2])
 
-# -------------------------
 # LEFT → GAUGE
-# -------------------------
-
 with col1:
-    st.subheader("Market Status")
+    liquidity_gauge(data.get("status", "UNKNOWN"), data.get("value", 0))
 
-    try:
-        if data:
-            liquidity_gauge(
-                data.get("status", "UNKNOWN"),
-                data.get("value", 0)
-            )
-        else:
-            st.error("No backend data available")
-    except Exception as e:
-        st.error(f"Gauge Error: {e}")
-
-# -------------------------
 # RIGHT → TREND
-# -------------------------
-
 with col2:
-    try:
-        if df is not None:
-            stress_trend_chart(df)
-        else:
-            st.error("No dataframe available")
-    except Exception as e:
-        st.error(f"Trend Error: {e}")
+    stress_trend_chart(df)
 
 # =========================
 # LOWER SECTION
@@ -102,15 +81,7 @@ with col2:
 col3, col4 = st.columns(2)
 
 with col3:
-    try:
-        if df is not None:
-            top_risky_stocks(df)
-    except Exception as e:
-        st.error(f"Top Risk Error: {e}")
+    top_risky_stocks(df)
 
 with col4:
-    try:
-        if df is not None:
-            sector_heatmap(df)
-    except Exception as e:
-        st.error(f"Heatmap Error: {e}")
+    sector_heatmap(df)
