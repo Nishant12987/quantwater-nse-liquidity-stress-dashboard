@@ -8,6 +8,10 @@ from tqdm import tqdm
 import config
 
 ROOT_PATH = Path(config.ROOT_PATH)
+
+# ✅ ADD THIS LINE
+RAW_PATH = Path(config.DATA_RAW)
+
 BASE_URL = "https://archives.nseindia.com/content/historical/EQUITIES"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
@@ -26,7 +30,12 @@ def download_bhavcopy(date):
     month = date.strftime("%b").upper()
     date_str = date.strftime("%d%b%Y").upper()
 
-    year_dir = ROOT_PATH / "bhavcopy_raw" / year
+    # ❌ OLD
+    # year_dir = ROOT_PATH / "bhavcopy_raw" / year
+
+    # ✅ FIXED
+    year_dir = RAW_PATH / year
+
     year_dir.mkdir(parents=True, exist_ok=True)
 
     csv_path = year_dir / f"cm{date_str}bhav.csv"
