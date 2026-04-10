@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import time
 
 # =========================
 # PATH SETUP
@@ -23,25 +24,18 @@ from dashboard_backend import backend_pipeline
 
 st.set_page_config(page_title="Liquidity Risk Terminal", layout="wide")
 
-# =========================
-# DARK THEME
-# =========================
-
-st.markdown("""
-<style>
-body { background-color: #0e1117; color: white; }
-.title { font-size: 30px; font-weight: bold; }
-.subtitle { color: #9aa4b2; }
-</style>
-""", unsafe_allow_html=True)
+st.title("📊 Liquidity Risk Terminal — Live Portfolio Mode")
 
 # =========================
-# HEADER
+# AUTO REFRESH (LIVE FEEL)
 # =========================
 
-st.markdown('<div class="title">📊 Liquidity Risk Terminal</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Hedge Fund Monitoring System</div>', unsafe_allow_html=True)
-st.markdown("---")
+st.sidebar.write("⏱ Auto Refresh (simulate live)")
+refresh = st.sidebar.slider("Seconds", 0, 60, 0)
+
+if refresh > 0:
+    time.sleep(refresh)
+    st.rerun()
 
 # =========================
 # LOAD DATA
@@ -52,132 +46,129 @@ df = pd.read_csv("models/checkpoints/xgboost_full_predictions.csv")
 
 df["DATE"] = pd.to_datetime(df["DATE"])
 
+latest_df = df.sort_values("DATE").groupby("SYMBOL").tail(1)
+
 # =========================
-# SIDEBAR
+# SECTOR MAPPING (MANUAL)
 # =========================
 
-st.sidebar.header("⚙️ Controls")
+sector_map = {
+    "HDFCBANK": "Banking",
+    "ICICIBANK": "Banking",
+    "SBIN": "Banking",
+    "TCS": "IT",
+    "INFY": "IT",
+    "WIPRO": "IT",
+    "RELIANCE": "Energy",
+    "ONGC": "Energy",
+    "ADANIENT": "Energy",
+    "BHARTIARTL": "Telecom",
+    "IDEA": "Telecom",
+}
 
-stock = st.sidebar.selectbox(
-    "Select Stock",
-    ["ALL"] + sorted(df["SYMBOL"].unique())
+latest_df["SECTOR"] = latest_df["SYMBOL"].map(sector_map).fillna("Other")
+
+# =========================
+# PORTFOLIO BUILDER
+# =========================
+
+st.sidebar.header("📂 Build Portfolio")
+
+symbols = sorted(df["SYMBOL"].unique())
+
+selected_stocks = st.sidebar.multiselect(
+    "Select Stocks",
+    symbols,
+    default=symbols[:5]
 )
 
-if stock != "ALL":
-    df = df[df["SYMBOL"] == stock]
+portfolio = []
+
+for stock in selected_stocks:
+    weight = st.sidebar.slider(f"{stock} weight", 0.0, 1.0, 0.1)
+    portfolio.append((stock, weight))
+
+portfolio_df = pd.DataFrame(portfolio, columns=["SYMBOL", "WEIGHT"])
+
+if portfolio_df["WEIGHT"].sum() > 0:
+    portfolio_df["WEIGHT"] /= portfolio_df["WEIGHT"].sum()
+
+portfolio_df = portfolio_df.merge(
+    latest_df,
+    on="SYMBOL",
+    how="left"
+)
 
 # =========================
-# KPIs
+# PORTFOLIO METRICS
 # =========================
 
-status = data.get("status", "UNKNOWN")
-value = data.get("value", 0)
-alerts = int(df["PRED_STRESS"].sum())
+portfolio_stress = (portfolio_df["WEIGHT"] * portfolio_df["PRED_PROBA"]).sum()
 
-col1, col2, col3 = st.columns(3)
-
-col1.metric("Market Status", status)
-col2.metric("Stress Score", round(value, 4))
-col3.metric("Critical Alerts", alerts)
+st.metric("📊 Portfolio Stress Score", round(portfolio_stress, 4))
 
 # =========================
-# GAUGE
+# SECTOR RISK
 # =========================
 
-fig = go.Figure(go.Indicator(
-    mode="gauge+number",
-    value=value,
-    title={'text': "Market Stress"},
-    gauge={
-        'axis': {'range': [0, 3]},
-        'bar': {'color': "red"},
-        'steps': [
-            {'range': [0, 0.5], 'color': "green"},
-            {'range': [0.5, 1.5], 'color': "yellow"},
-            {'range': [1.5, 3], 'color': "red"}
-        ]
-    }
-))
+st.subheader("🏦 Sector Risk View")
 
+sector_risk = (
+    portfolio_df
+    .groupby("SECTOR")
+    .apply(lambda x: (x["WEIGHT"] * x["PRED_PROBA"]).sum())
+    .reset_index(name="SECTOR_RISK")
+)
+
+fig = px.bar(sector_risk, x="SECTOR", y="SECTOR_RISK", color="SECTOR")
 st.plotly_chart(fig, use_container_width=True)
 
 # =========================
-# TREND + MOMENTUM
+# PORTFOLIO TREND
 # =========================
 
-col4, col5 = st.columns([2, 1])
+st.subheader("📈 Portfolio Trend")
 
-trend = df.groupby("DATE")["PRED_STRESS"].mean().reset_index()
+trend_list = []
 
-with col4:
-    st.subheader("📈 Stress Trend")
-    fig = px.line(trend, x="DATE", y="PRED_STRESS")
-    st.plotly_chart(fig, use_container_width=True)
+for symbol, weight in zip(portfolio_df["SYMBOL"], portfolio_df["WEIGHT"]):
+    temp = df[df["SYMBOL"] == symbol].copy()
+    temp["WEIGHTED"] = temp["PRED_PROBA"] * weight
+    trend_list.append(temp[["DATE", "WEIGHTED"]])
 
-with col5:
-    st.subheader("⚡ Momentum")
+portfolio_trend = pd.concat(trend_list)
+portfolio_trend = portfolio_trend.groupby("DATE")["WEIGHTED"].sum().reset_index()
 
-    recent = trend.tail(5)["PRED_STRESS"].mean()
-    prev = trend.iloc[-10:-5]["PRED_STRESS"].mean()
-
-    if recent > prev:
-        st.error("📈 Stress Increasing")
-    elif recent < prev:
-        st.success("📉 Stress Decreasing")
-    else:
-        st.warning("➖ Stable")
-
-# =========================
-# TOP STRESSED STOCKS (AUTO)
-# =========================
-
-st.subheader("🔥 Top Stressed Stocks (Auto Signal)")
-
-top_today = (
-    df.sort_values("DATE")
-    .groupby("SYMBOL")
-    .tail(1)
-    .sort_values("PRED_PROBA", ascending=False)
-    .head(10)
-)
-
-st.dataframe(top_today[["SYMBOL", "PRED_PROBA"]], use_container_width=True)
-
-# =========================
-# SECTOR PROXY (SYMBOL CLUSTER)
-# =========================
-
-st.subheader("📊 Stress Distribution (Market Breadth)")
-
-breadth = df.groupby("DATE")["PRED_STRESS"].mean()
-
-fig = px.area(breadth)
+fig = px.line(portfolio_trend, x="DATE", y="WEIGHTED")
 st.plotly_chart(fig, use_container_width=True)
 
 # =========================
-# SMART ALERTS
+# LIVE TOP STRESS
 # =========================
 
-st.subheader("🚨 Smart Alerts (Recent Spikes)")
+st.subheader("🔥 Live Market Stress Leaders")
 
-recent_alerts = df.sort_values("DATE", ascending=False).head(200)
-recent_alerts = recent_alerts[recent_alerts["PRED_STRESS"] == 1]
+top = latest_df.sort_values("PRED_PROBA", ascending=False).head(10)
 
-st.dataframe(
-    recent_alerts[["DATE", "SYMBOL", "PRED_PROBA"]].head(10),
-    use_container_width=True
-)
+st.dataframe(top[["SYMBOL", "PRED_PROBA", "SECTOR"]])
 
 # =========================
 # SIGNAL ENGINE
 # =========================
 
-st.markdown("---")
 st.subheader("🧠 Signal Engine")
 
-if value < 0.5:
-    st.success("🟢 LOW RISK — Market stable")
-elif value < 1.5:
-    st.warning("🟡 CAUTION — Stress building")
+if portfolio_stress > 0.7:
+    st.error("🔴 High Portfolio Risk")
+elif portfolio_stress > 0.4:
+    st.warning("🟡 Moderate Risk")
 else:
-    st.error("🔴 HIGH RISK — Liquidity crisis possible")
+    st.success("🟢 Healthy Portfolio")
+
+# =========================
+# INSIGHT
+# =========================
+
+top_sector = sector_risk.sort_values("SECTOR_RISK", ascending=False).iloc[0]
+
+st.write(f"⚠️ Highest Risk Sector: {top_sector['SECTOR']}")
