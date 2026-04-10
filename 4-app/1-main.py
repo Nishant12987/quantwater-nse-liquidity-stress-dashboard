@@ -24,28 +24,14 @@ from dashboard_backend import backend_pipeline
 st.set_page_config(page_title="Liquidity Risk Terminal", layout="wide")
 
 # =========================
-# DARK THEME (TERMINAL STYLE)
+# DARK THEME
 # =========================
 
 st.markdown("""
 <style>
 body { background-color: #0e1117; color: white; }
-
-.metric-card {
-    background-color: #1c1f26;
-    padding: 20px;
-    border-radius: 12px;
-    text-align: center;
-}
-
-.title {
-    font-size: 28px;
-    font-weight: bold;
-}
-
-.subtitle {
-    color: #9aa4b2;
-}
+.title { font-size: 30px; font-weight: bold; }
+.subtitle { color: #9aa4b2; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -67,7 +53,7 @@ df = pd.read_csv("models/checkpoints/xgboost_full_predictions.csv")
 df["DATE"] = pd.to_datetime(df["DATE"])
 
 # =========================
-# SIDEBAR FILTERS
+# SIDEBAR
 # =========================
 
 st.sidebar.header("⚙️ Controls")
@@ -77,19 +63,11 @@ stock = st.sidebar.selectbox(
     ["ALL"] + sorted(df["SYMBOL"].unique())
 )
 
-date_range = st.sidebar.date_input(
-    "Date Range",
-    [df["DATE"].min(), df["DATE"].max()]
-)
-
 if stock != "ALL":
     df = df[df["SYMBOL"] == stock]
 
-df = df[(df["DATE"] >= pd.to_datetime(date_range[0])) &
-        (df["DATE"] <= pd.to_datetime(date_range[1]))]
-
 # =========================
-# KPI SECTION
+# KPIs
 # =========================
 
 status = data.get("status", "UNKNOWN")
@@ -124,34 +102,71 @@ fig = go.Figure(go.Indicator(
 st.plotly_chart(fig, use_container_width=True)
 
 # =========================
-# TREND
+# TREND + MOMENTUM
 # =========================
 
-st.subheader("📈 Stress Trend")
+col4, col5 = st.columns([2, 1])
 
 trend = df.groupby("DATE")["PRED_STRESS"].mean().reset_index()
 
-fig = px.line(trend, x="DATE", y="PRED_STRESS")
+with col4:
+    st.subheader("📈 Stress Trend")
+    fig = px.line(trend, x="DATE", y="PRED_STRESS")
+    st.plotly_chart(fig, use_container_width=True)
+
+with col5:
+    st.subheader("⚡ Momentum")
+
+    recent = trend.tail(5)["PRED_STRESS"].mean()
+    prev = trend.iloc[-10:-5]["PRED_STRESS"].mean()
+
+    if recent > prev:
+        st.error("📈 Stress Increasing")
+    elif recent < prev:
+        st.success("📉 Stress Decreasing")
+    else:
+        st.warning("➖ Stable")
+
+# =========================
+# TOP STRESSED STOCKS (AUTO)
+# =========================
+
+st.subheader("🔥 Top Stressed Stocks (Auto Signal)")
+
+top_today = (
+    df.sort_values("DATE")
+    .groupby("SYMBOL")
+    .tail(1)
+    .sort_values("PRED_PROBA", ascending=False)
+    .head(10)
+)
+
+st.dataframe(top_today[["SYMBOL", "PRED_PROBA"]], use_container_width=True)
+
+# =========================
+# SECTOR PROXY (SYMBOL CLUSTER)
+# =========================
+
+st.subheader("📊 Stress Distribution (Market Breadth)")
+
+breadth = df.groupby("DATE")["PRED_STRESS"].mean()
+
+fig = px.area(breadth)
 st.plotly_chart(fig, use_container_width=True)
 
 # =========================
-# LOWER PANELS
+# SMART ALERTS
 # =========================
 
-col4, col5 = st.columns([1.2, 1])
+st.subheader("🚨 Smart Alerts (Recent Spikes)")
 
-with col4:
-    st.subheader("🔥 Top Risky Stocks")
+recent_alerts = df.sort_values("DATE", ascending=False).head(200)
+recent_alerts = recent_alerts[recent_alerts["PRED_STRESS"] == 1]
 
-    top = df.sort_values("PRED_PROBA", ascending=False).head(10)
-    st.dataframe(top[["SYMBOL", "PRED_PROBA"]], use_container_width=True)
-
-with col5:
-    st.subheader("🔥 Stress Concentration")
-
-    heatmap = df.groupby("SYMBOL")["PRED_STRESS"].mean().sort_values(ascending=False).head(15)
-    fig = px.bar(heatmap)
-    st.plotly_chart(fig, use_container_width=True)
+st.dataframe(
+    recent_alerts[["DATE", "SYMBOL", "PRED_PROBA"]].head(10),
+    use_container_width=True
+)
 
 # =========================
 # SIGNAL ENGINE
@@ -166,33 +181,3 @@ elif value < 1.5:
     st.warning("🟡 CAUTION — Stress building")
 else:
     st.error("🔴 HIGH RISK — Liquidity crisis possible")
-
-# =========================
-# ADVANCED ANALYTICS
-# =========================
-
-st.subheader("📊 Advanced Analytics")
-
-volatility = df["PRED_STRESS"].std()
-max_stress = df["PRED_STRESS"].max()
-
-col6, col7 = st.columns(2)
-
-col6.metric("Stress Volatility", round(volatility, 4))
-col7.metric("Peak Stress", round(max_stress, 4))
-
-if volatility > 0.5:
-    st.warning("⚠️ Market showing unstable liquidity patterns")
-
-# =========================
-# ALERT PANEL
-# =========================
-
-st.subheader("🚨 Alerts")
-
-alerts_df = df[df["PRED_STRESS"] == 1].sort_values("DATE", ascending=False).head(5)
-
-if not alerts_df.empty:
-    st.dataframe(alerts_df[["DATE", "SYMBOL", "PRED_PROBA"]])
-else:
-    st.success("No recent alerts")
