@@ -2,9 +2,7 @@ name: Liquidity Pipeline CI
 
 on:
 push:
-branches:
-- main
-pull_request:
+branches: [main]
 
 jobs:
 test-pipeline:
@@ -12,31 +10,19 @@ runs-on: ubuntu-latest
 
 ```
 steps:
-  - name: Checkout Repo
-    uses: actions/checkout@v3
+  - uses: actions/checkout@v3
 
-  - name: Setup Python
-    uses: actions/setup-python@v4
+  - uses: actions/setup-python@v4
     with:
-      python-version: '3.10'
+      python-version: "3.10"
 
-  - name: Install Dependencies
-    run: |
-      pip install -r 8-requirements.txt
+  - run: pip install -r 8-requirements.txt
 
-  - name: Test Ingestion
-    run: |
-      python 3-src/1-ingestion/nse_scraper.py || true
+  - run: python 3-src/1-ingestion/nse_scraper.py || true
 
-  - name: Test Features
-    run: |
-      python 3-src/2-features/1-liquidity_metrics.py || true
-      python 3-src/2-features/2-market_context.py || true
+  - run: python 3-src/2-features/1-liquidity_metrics.py || true
 
-  - name: Test Model
-    run: |
-      python 3-src/3-models/1-xgboost_engine.py || true
+  - run: python 3-src/2-features/2-market_context.py || true
 
-  - name: CI Completed
-    run: echo "Pipeline executed successfully!"
+  - run: python 3-src/3-models/1-xgboost_engine.py || true
 ```
