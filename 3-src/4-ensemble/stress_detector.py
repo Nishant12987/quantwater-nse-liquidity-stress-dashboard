@@ -1,7 +1,6 @@
 import joblib
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 from pathlib import Path
 
 
@@ -19,13 +18,10 @@ class StressDetector:
             self.base / "models/checkpoints/xgboost_threshold.pkl"
         )
 
-        self.lstm_model = tf.keras.models.load_model(
-            self.base / "models/checkpoints/lstm_stress_forecaster.keras"
-        )
-
-        # ✅ LOAD SCALER
-        self.scaler = joblib.load(
-            self.base / "models/checkpoints/lstm_scaler.pkl"
+        # ✅ LOAD PRECOMPUTED LSTM CSV (REPLACES TENSORFLOW)
+        self.lstm_data = pd.read_csv(
+            self.base / "models/checkpoints/lstm_predictions.csv",
+            parse_dates=["DATE"]
         )
 
         self.features = [
@@ -36,18 +32,6 @@ class StressDetector:
         ]
 
         self.lookback = 10
-
-
-    def prepare_lstm_sequences(self, df):
-
-        values = df[self.features].values
-
-        sequences = []
-
-        for i in range(self.lookback, len(values)):
-            sequences.append(values[i - self.lookback:i])
-
-        return np.array(sequences)
 
 
     def run_xgboost(self, df):
@@ -63,16 +47,17 @@ class StressDetector:
 
     def run_lstm(self, df):
 
-        df_scaled = df.copy()
+        # Merge LSTM predictions
+        merged = df.merge(
+            self.lstm_data,
+            on=["DATE", "SYMBOL"],
+            how="left"
+        )
 
-        # ✅ APPLY SAME SCALER
-        df_scaled[self.features] = self.scaler.transform(df[self.features])
+        # Fill missing safely
+        lstm_pred = merged["LSTM_SCORE"].fillna(0).values
 
-        X_lstm = self.prepare_lstm_sequences(df_scaled)
-
-        pred = self.lstm_model.predict(X_lstm).flatten()
-
-        return pred
+        return lstm_pred[self.lookback:]
 
 
     def detect(self, df):
@@ -85,7 +70,7 @@ class StressDetector:
 
         xgb_pred_aligned = xgb_pred[self.lookback:]
 
-        # ✅ NEW REGRESSION-BASED THRESHOLD
+        # SAME LOGIC (unchanged)
         lstm_threshold = np.mean(lstm_pred) + 2 * np.std(lstm_pred)
 
         critical_alert = (
