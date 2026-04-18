@@ -62,7 +62,6 @@ FEATURES = [
 ]
 
 df = df.dropna(subset=FEATURES + ["STRESS_LABEL"]).copy()
-
 df[FEATURES] = df[FEATURES].replace([np.inf, -np.inf], np.nan)
 df = df.dropna(subset=FEATURES)
 
@@ -152,24 +151,29 @@ print("LSTM model + scaler saved successfully.")
 
 
 # -------------------------------------------------
-# GENERATE PREDICTIONS (PRODUCTION)
+# GENERATE PREDICTIONS (COMPRESSED)
 # -------------------------------------------------
 
 full_df = pd.concat([train_df, test_df]).sort_values("DATE").reset_index(drop=True)
 
+# Clean data
 full_df[FEATURES] = full_df[FEATURES].replace([np.inf, -np.inf], np.nan)
 full_df = full_df.dropna(subset=FEATURES)
 
+# Apply scaler
 full_df_scaled = full_df.copy()
 full_df_scaled[FEATURES] = scaler.transform(full_df[FEATURES])
 
+# Build sequences
 X_full, _ = build_sequences(full_df_scaled, FEATURES, LOOKBACK)
 
 if len(X_full) == 0:
     raise ValueError("No sequences generated. Check data and lookback.")
 
+# Predict
 lstm_preds = model.predict(X_full, verbose=0).flatten()
 
+# Align
 aligned_df = full_df.iloc[LOOKBACK:].copy()
 
 if len(aligned_df) != len(lstm_preds):
@@ -179,9 +183,19 @@ if len(aligned_df) != len(lstm_preds):
 
 aligned_df["LSTM_SCORE"] = lstm_preds
 
-pred_df = aligned_df[["DATE", "SYMBOL", "LSTM_SCORE"]]
+# Keep only required columns
+pred_df = aligned_df[["DATE", "SYMBOL", "LSTM_SCORE"]].copy()
 
-output_path = MODEL_DIR / "lstm_predictions.csv"
-pred_df.to_csv(output_path, index=False)
+# Sort for consistency
+pred_df = pred_df.sort_values("DATE")
+
+# Save compressed file
+output_path = MODEL_DIR / "lstm_predictions.csv.gz"
+
+pred_df.to_csv(
+    output_path,
+    index=False,
+    compression="gzip"
+)
 
 print("LSTM predictions saved at:", output_path)
