@@ -1,28 +1,23 @@
-name: Liquidity Pipeline CI
+name: CI
 
-on:
-push:
-branches: [main]
-
+on:  
+  push:
+  pull_request:
 jobs:
-test-pipeline:
-runs-on: ubuntu-latest
+  test:
+    runs-on: ubuntu-latest
 
-```
-steps:
-  - uses: actions/checkout@v3
-
-  - uses: actions/setup-python@v4
-    with:
-      python-version: "3.10"
-
-  - run: pip install -r 8-requirements.txt
-
-  - run: python 3-src/1-ingestion/nse_scraper.py || true
-
-  - run: python 3-src/2-features/1-liquidity_metrics.py || true
-
-  - run: python 3-src/2-features/2-market_context.py || true
-
-  - run: python 3-src/3-models/1-xgboost_engine.py || true
-```
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - run: pip install -r 8-requirements.txt
+      
+      - run: python 3-src/1-ingestion/nse_scraper.py || true
+      
+      - run: python 3-src/2-features/1-liquidity_metrics.py || true
+      
+      - run: python 3-src/2-features/2-market_context.py || true
+      
+      - run: python 3-src/3-models/1-xgboost_engine.py || true
