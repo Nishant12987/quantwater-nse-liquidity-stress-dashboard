@@ -18,10 +18,11 @@ class StressDetector:
             self.base / "models/checkpoints/xgboost_threshold.pkl"
         )
 
-        # ✅ LOAD PRECOMPUTED LSTM CSV (REPLACES TENSORFLOW)
+        # LOAD PRECOMPUTED LSTM CSV (GZ FIX APPLIED)
         self.lstm_data = pd.read_csv(
-            self.base / "models/checkpoints/lstm_predictions.csv",
-            parse_dates=["DATE"]
+            self.base / "models/checkpoints/lstm_predictions.csv.gz",
+            parse_dates=["DATE"],
+            compression="gzip"
         )
 
         self.features = [
@@ -47,14 +48,12 @@ class StressDetector:
 
     def run_lstm(self, df):
 
-        # Merge LSTM predictions
         merged = df.merge(
             self.lstm_data,
             on=["DATE", "SYMBOL"],
             how="left"
         )
 
-        # Fill missing safely
         lstm_pred = merged["LSTM_SCORE"].fillna(0).values
 
         return lstm_pred[self.lookback:]
@@ -70,7 +69,6 @@ class StressDetector:
 
         xgb_pred_aligned = xgb_pred[self.lookback:]
 
-        # SAME LOGIC (unchanged)
         lstm_threshold = np.mean(lstm_pred) + 2 * np.std(lstm_pred)
 
         critical_alert = (
@@ -93,8 +91,9 @@ if __name__ == "__main__":
     BASE = "."
 
     data = pd.read_csv(
-        Path(BASE) / "models/checkpoints/xgboost_full_predictions.csv",
-        parse_dates=["DATE"]
+        Path(BASE) / "models/checkpoints/xgboost_full_predictions.csv.gz",
+        parse_dates=["DATE"],
+        compression="gzip"
     )
 
     detector = StressDetector(BASE)
