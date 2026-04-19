@@ -9,14 +9,20 @@ from sklearn.metrics import precision_score, classification_report
 from xgboost import XGBClassifier
 
 
+# -------------------------------------------------
+# PATHS
+# -------------------------------------------------
+
 BASE = Path(os.getcwd())
 
-# ✅ FIXED PATH
 FEATURES_DIR = BASE / "data/processed"
-
 MODEL_DIR = BASE / "models" / "checkpoints"
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
+
+# -------------------------------------------------
+# LOAD DATA
+# -------------------------------------------------
 
 amihud = pd.read_csv(FEATURES_DIR / "amihud.csv")
 roll = pd.read_csv(FEATURES_DIR / "roll_spread.csv")
@@ -36,7 +42,10 @@ df = df.merge(market, on="DATE", how="left")
 df = df.merge(labels, on="DATE", how="inner")
 
 
-# Rolling Z-score (no leakage: use shift)
+# -------------------------------------------------
+# FEATURE ENGINEERING (PIT SAFE)
+# -------------------------------------------------
+
 rolling_mean = df["MARKET_AMIHUD"].rolling(60).mean().shift(1)
 rolling_std = df["MARKET_AMIHUD"].rolling(60).std().shift(1)
 
@@ -44,6 +53,7 @@ df["MARKET_AMIHUD_Z"] = (
     (df["MARKET_AMIHUD"] - rolling_mean) / rolling_std
 )
 
+df = df.replace([np.inf, -np.inf], np.nan)
 df = df.dropna()
 
 
@@ -58,20 +68,30 @@ X = df[FEATURES]
 y = df["STRESS_LABEL"]
 
 
+# -------------------------------------------------
+# TRAIN / TEST SPLIT
+# -------------------------------------------------
+
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.25, shuffle=False
 )
 
 
+# -------------------------------------------------
+# HANDLE CLASS IMBALANCE
+# -------------------------------------------------
+
 scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
 
+
+# -------------------------------------------------
+# MODEL
+# -------------------------------------------------
 
 model = XGBClassifier(
     objective="binary:logistic",
     eval_metric="logloss",
     tree_method="hist",
-    # ❌ REMOVED CUDA (Colab safe)
-    # device="cuda",
     n_estimators=300,
     max_depth=4,
     learning_rate=0.05,
@@ -84,7 +104,10 @@ model = XGBClassifier(
 model.fit(X_train, y_train)
 
 
-# --- TEST SET EVALUATION ---
+# -------------------------------------------------
+# EVALUATION
+# -------------------------------------------------
+
 y_prob = model.predict_proba(X_test)[:, 1]
 
 threshold = np.quantile(y_prob, 0.97)
@@ -95,20 +118,39 @@ print("Final Precision:", precision_score(y_test, y_pred))
 print(classification_report(y_test, y_pred))
 
 
-# --- SAVE MODEL ---
-joblib.dump(model, MODEL_DIR / "xgboost_stress_gatekeeper.pkl")
+# -------------------------------------------------
+# SAVE MODEL
+# -------------------------------------------------
 
-# Save threshold separately
+joblib.dump(model, MODEL_DIR / "xgboost_stress_gatekeeper.pkl")
 joblib.dump(threshold, MODEL_DIR / "xgboost_threshold.pkl")
 
 
-# --- SAVE FULL PREDICTIONS FOR WEEK 4 AUDIT ---
+# -------------------------------------------------
+# GENERATE FULL PREDICTIONS (COMPRESSED)
+# -------------------------------------------------
+
 df["PRED_PROBA"] = model.predict_proba(X)[:, 1]
 df["PRED_STRESS"] = (df["PRED_PROBA"] > threshold).astype(int)
 
-df.to_csv(
-    MODEL_DIR / "xgboost_full_predictions.csv",
-    index=False
+# Keep only required columns
+pred_df = df[[
+    "DATE",
+    "SYMBOL",
+    "PRED_PROBA",
+    "PRED_STRESS"
+]].copy()
+
+# Sort for consistency
+pred_df = pred_df.sort_values("DATE")
+
+# Save compressed file
+output_path = MODEL_DIR / "xgboost_full_predictions.csv.gz"
+
+pred_df.to_csv(
+    output_path,
+    index=False,
+    compression="gzip"
 )
 
-print("Model + threshold + full predictions saved.")
+print("Model + threshold + compressed predictions saved at:", output_path)
