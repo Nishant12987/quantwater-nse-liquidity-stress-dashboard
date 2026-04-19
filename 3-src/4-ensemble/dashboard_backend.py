@@ -17,21 +17,21 @@ spec = importlib.util.spec_from_file_location("stress_detector", stress_path)
 stress_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(stress_module)
 
-# 🔥 IMPORTANT LINE (this fixes your error)
 sys.modules["stress_detector"] = stress_module
 
 StressDetector = stress_module.StressDetector
 
 
 # =========================
-# DATA LOADING
+# DATA LOADING (UPDATED)
 # =========================
 
 @st.cache_data
 def load_data():
     df = pd.read_csv(
-        BASE / "models/checkpoints/xgboost_full_predictions.csv",
-        parse_dates=["DATE"]
+        BASE / "models/checkpoints/xgboost_full_predictions.csv.gz",
+        parse_dates=["DATE"],
+        compression="gzip"
     )
     return df
 
