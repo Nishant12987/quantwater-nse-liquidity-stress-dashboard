@@ -5,7 +5,7 @@ from pathlib import Path
 import time
 
 # =========================
-# PATH SETUP (CLEAN)
+# PATH SETUP
 # =========================
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,7 +39,7 @@ if refresh > 0:
 
 
 # =========================
-# LOAD DATA (FROM BACKEND)
+# LOAD DATA
 # =========================
 
 data = backend_pipeline()
@@ -88,7 +88,7 @@ latest = results.sort_values("DATE").groupby("SYMBOL").tail(1)
 
 
 # =========================
-# TOP RISK STOCKS
+# TOP RISK STOCKS TABLE
 # =========================
 
 st.subheader("Top Risk Stocks")
@@ -99,6 +99,57 @@ st.dataframe(
     top_risk[["SYMBOL", "LSTM_SCORE", "CRITICAL_ALERT"]],
     use_container_width=True
 )
+
+
+# =========================
+# 📈 MARKET STRESS TREND
+# =========================
+
+st.subheader("Market Stress Trend")
+
+market_trend = (
+    results.groupby("DATE")["LSTM_SCORE"]
+    .mean()
+    .reset_index()
+)
+
+st.line_chart(market_trend.set_index("DATE"))
+
+
+# =========================
+# 📊 TOP RISK BAR CHART
+# =========================
+
+st.subheader("Top Risk Distribution")
+
+top10 = latest.sort_values("LSTM_SCORE", ascending=False).head(10)
+
+st.bar_chart(top10.set_index("SYMBOL")["LSTM_SCORE"])
+
+
+# =========================
+# 🧠 SECTOR HEATMAP
+# =========================
+
+sector_map = {
+    "RELIANCE": "Energy",
+    "HDFCBANK": "Banking",
+    "INFY": "IT",
+    "TCS": "IT",
+    "ICICIBANK": "Banking",
+}
+
+results["SECTOR"] = results["SYMBOL"].map(sector_map).fillna("Other")
+
+st.subheader("Sector Risk Heatmap")
+
+sector_data = (
+    results.groupby("SECTOR")["LSTM_SCORE"]
+    .mean()
+    .sort_values(ascending=False)
+)
+
+st.bar_chart(sector_data)
 
 
 # =========================
