@@ -6,13 +6,12 @@ import time
 import plotly.express as px
 
 # =========================
-# PATH SETUP
+# PATH SETUP (FIXED)
 # =========================
 
 ROOT = Path(__file__).resolve().parents[1]
 
-sys.path.append(str(ROOT))
-sys.path.append(str(ROOT / "3-src"))
+# Only correct path
 sys.path.append(str(ROOT / "3-src/4-ensemble"))
 
 from dashboard_backend import backend_pipeline
@@ -42,7 +41,7 @@ if refresh > 0:
 
 
 # =========================
-# LOAD DATA
+# LOAD DATA (ONLY BACKEND)
 # =========================
 
 data = backend_pipeline()
@@ -67,7 +66,7 @@ st.caption(f"Last updated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}")
 # =========================
 
 if results.empty:
-    st.error("No data available. Check backend or file paths.")
+    st.error("No data available. Check backend or files.")
     st.stop()
 
 
@@ -105,7 +104,7 @@ col4.metric("Active Stocks", results["SYMBOL"].nunique())
 
 
 # =========================
-# TOP RISK TABLE (COLORED)
+# TOP RISK TABLE
 # =========================
 
 def risk_color(val):
@@ -122,7 +121,7 @@ top_risk = latest.sort_values("LSTM_SCORE", ascending=False).head(10)
 
 st.dataframe(
     top_risk.style.applymap(risk_color, subset=["LSTM_SCORE"]),
-    use_container_width=True
+    width="stretch"
 )
 
 
@@ -139,7 +138,7 @@ if alerts.empty:
 else:
     st.dataframe(
         alerts[["SYMBOL", "LSTM_SCORE"]],
-        use_container_width=True
+        width="stretch"
     )
 
 
@@ -162,7 +161,7 @@ fig_trend = px.line(
     title="Market Stress Over Time"
 )
 
-st.plotly_chart(fig_trend, use_container_width=True)
+st.plotly_chart(fig_trend, width="stretch")
 
 
 # =========================
@@ -179,7 +178,7 @@ fig_bar = px.bar(
     title="Top Risk Stocks"
 )
 
-st.plotly_chart(fig_bar, use_container_width=True)
+st.plotly_chart(fig_bar, width="stretch")
 
 
 # =========================
@@ -212,7 +211,7 @@ fig_sector = px.bar(
     title="Sector-wise Risk"
 )
 
-st.plotly_chart(fig_sector, use_container_width=True)
+st.plotly_chart(fig_sector, width="stretch")
 
 
 # =========================
