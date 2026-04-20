@@ -3,6 +3,7 @@ import pandas as pd
 import sys
 from pathlib import Path
 import time
+import plotly.express as px
 
 # =========================
 # PATH SETUP
@@ -25,6 +26,21 @@ st.set_page_config(
     page_title="QuantWater Liquidity Risk Engine",
     layout="wide"
 )
+
+
+# =========================
+# DARK THEME ENHANCEMENT
+# =========================
+
+st.markdown("""
+<style>
+.metric-box {
+    background-color: #111;
+    padding: 15px;
+    border-radius: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
 
 
 # =========================
@@ -60,18 +76,6 @@ st.caption(f"Last updated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 
 # =========================
-# TOP METRICS
-# =========================
-
-col1, col2, col3, col4 = st.columns(4)
-
-col1.metric("Market Status", status)
-col2.metric("Market Stress", round(value, 4) if value else 0)
-col3.metric("Total Alerts", int(results["CRITICAL_ALERT"].sum()) if not results.empty else 0)
-col4.metric("Active Stocks", results["SYMBOL"].nunique() if not results.empty else 0)
-
-
-# =========================
 # SAFETY CHECK
 # =========================
 
@@ -81,19 +85,31 @@ if results.empty:
 
 
 # =========================
-# LATEST SNAPSHOT
+# LATEST DATA
 # =========================
 
 latest = results.sort_values("DATE").groupby("SYMBOL").tail(1)
 
 
 # =========================
-# TOP RISK STOCKS TABLE
+# METRICS (BLOOMBERG STYLE)
+# =========================
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric("Market Status", status)
+col2.metric("Market Stress", round(value, 4))
+col3.metric("Total Alerts", int(results["CRITICAL_ALERT"].sum()))
+col4.metric("Active Stocks", results["SYMBOL"].nunique())
+
+
+# =========================
+# TOP RISK TABLE
 # =========================
 
 st.subheader("Top Risk Stocks")
 
-top_risk = latest.sort_values("LSTM_SCORE", ascending=False).head(5)
+top_risk = latest.sort_values("LSTM_SCORE", ascending=False).head(10)
 
 st.dataframe(
     top_risk[["SYMBOL", "LSTM_SCORE", "CRITICAL_ALERT"]],
@@ -102,7 +118,7 @@ st.dataframe(
 
 
 # =========================
-# 📈 MARKET STRESS TREND
+# MARKET TREND (PLOTLY)
 # =========================
 
 st.subheader("Market Stress Trend")
@@ -113,43 +129,64 @@ market_trend = (
     .reset_index()
 )
 
-st.line_chart(market_trend.set_index("DATE"))
+fig_trend = px.line(
+    market_trend,
+    x="DATE",
+    y="LSTM_SCORE",
+    title="Market Stress Over Time"
+)
+
+st.plotly_chart(fig_trend, use_container_width=True)
 
 
 # =========================
-# 📊 TOP RISK BAR CHART
+# TOP RISK BAR (PLOTLY)
 # =========================
 
 st.subheader("Top Risk Distribution")
 
-top10 = latest.sort_values("LSTM_SCORE", ascending=False).head(10)
+fig_bar = px.bar(
+    top_risk,
+    x="SYMBOL",
+    y="LSTM_SCORE",
+    color="LSTM_SCORE",
+    title="Top Risk Stocks"
+)
 
-st.bar_chart(top10.set_index("SYMBOL")["LSTM_SCORE"])
+st.plotly_chart(fig_bar, use_container_width=True)
 
 
 # =========================
-# 🧠 SECTOR HEATMAP
+# SECTOR ANALYSIS (IMPROVED)
 # =========================
 
 sector_map = {
     "RELIANCE": "Energy",
     "HDFCBANK": "Banking",
+    "ICICIBANK": "Banking",
     "INFY": "IT",
     "TCS": "IT",
-    "ICICIBANK": "Banking",
 }
 
 results["SECTOR"] = results["SYMBOL"].map(sector_map).fillna("Other")
 
-st.subheader("Sector Risk Heatmap")
+st.subheader("Sector Risk Distribution")
 
 sector_data = (
     results.groupby("SECTOR")["LSTM_SCORE"]
     .mean()
-    .sort_values(ascending=False)
+    .reset_index()
 )
 
-st.bar_chart(sector_data)
+fig_sector = px.bar(
+    sector_data,
+    x="SECTOR",
+    y="LSTM_SCORE",
+    color="LSTM_SCORE",
+    title="Sector-wise Risk"
+)
+
+st.plotly_chart(fig_sector, use_container_width=True)
 
 
 # =========================
@@ -161,32 +198,28 @@ st.subheader("Portfolio Builder")
 stocks = latest["SYMBOL"].unique()[:10]
 
 weights = {}
-
 cols = st.columns(len(stocks))
 
 for i, stock in enumerate(stocks):
     weights[stock] = cols[i].slider(stock, 0.0, 1.0, 0.1)
 
-
-# Normalize weights
 total_weight = sum(weights.values())
+
+portfolio_stress = 0
 
 if total_weight == 0:
     st.error("Total weight cannot be zero")
-    portfolio_stress = 0
 else:
     weights = {k: v / total_weight for k, v in weights.items()}
 
-    portfolio_stress = 0
-
     for stock, w in weights.items():
-        stock_val = latest[latest["SYMBOL"] == stock]["LSTM_SCORE"]
-        if len(stock_val) > 0:
-            portfolio_stress += w * stock_val.values[0]
+        val = latest[latest["SYMBOL"] == stock]["LSTM_SCORE"]
+        if len(val) > 0:
+            portfolio_stress += w * val.values[0]
 
 
 # =========================
-# PORTFOLIO METRICS
+# PORTFOLIO RISK
 # =========================
 
 def classify_risk(x):
@@ -196,7 +229,6 @@ def classify_risk(x):
         return "MEDIUM"
     else:
         return "HIGH"
-
 
 risk_label = classify_risk(portfolio_stress)
 
@@ -212,9 +244,9 @@ st.subheader("Stress Simulation")
 
 shock = st.slider("Market Shock (%)", -50, 50, 0)
 
-simulated_stress = portfolio_stress * (1 + shock / 100)
+simulated = portfolio_stress * (1 + shock / 100)
 
-st.metric("Simulated Stress", round(simulated_stress, 4))
+st.metric("Simulated Stress", round(simulated, 4))
 
 
 # =========================
