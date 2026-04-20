@@ -83,7 +83,10 @@ if refresh > 0:
 # =========================
 
 data = backend_pipeline()
-df = pd.read_csv("models/checkpoints/xgboost_full_predictions.csv")
+df = pd.read_csv(
+    "models/checkpoints/xgboost_full_predictions.csv.gz",
+    compression="gzip"
+)
 
 df["DATE"] = pd.to_datetime(df["DATE"])
 latest_df = df.sort_values("DATE").groupby("SYMBOL").tail(1)
