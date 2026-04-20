@@ -1,153 +1,180 @@
+import streamlit as st
 import pandas as pd
-import numpy as np
+import sys
 from pathlib import Path
+import time
+
+# =========================
+# PATH SETUP (CLEAN)
+# =========================
+
+ROOT = Path(__file__).resolve().parents[1]
+
+sys.path.append(str(ROOT))
+sys.path.append(str(ROOT / "3-src"))
+sys.path.append(str(ROOT / "3-src/4-ensemble"))
+
+from dashboard_backend import backend_pipeline
 
 
 # =========================
-# PATH SETUP (ROBUST)
+# PAGE CONFIG
 # =========================
 
-BASE = Path(__file__).resolve().parents[2]
-
-
-# =========================
-# LOAD DATA (SAFE + DEBUG)
-# =========================
-
-def load_data():
-    xgb_path = BASE / "models" / "checkpoints" / "xgboost_full_predictions.csv.gz"
-    lstm_path = BASE / "models" / "checkpoints" / "lstm_predictions.csv.gz"
-
-    print(f"Looking for XGBoost file at: {xgb_path}")
-    print(f"Looking for LSTM file at: {lstm_path}")
-
-    if not xgb_path.exists():
-        raise FileNotFoundError(f"❌ XGBoost file not found at {xgb_path}")
-
-    if not lstm_path.exists():
-        raise FileNotFoundError(f"❌ LSTM file not found at {lstm_path}")
-
-    try:
-        df = pd.read_csv(
-            xgb_path,
-            parse_dates=["DATE"],
-            compression="gzip"
-        )
-    except Exception as e:
-        raise RuntimeError(f"Error loading XGBoost file: {e}")
-
-    try:
-        lstm_df = pd.read_csv(
-            lstm_path,
-            parse_dates=["DATE"],
-            compression="gzip"
-        )
-    except Exception as e:
-        raise RuntimeError(f"Error loading LSTM file: {e}")
-
-    return df, lstm_df
+st.set_page_config(
+    page_title="QuantWater Liquidity Risk Engine",
+    layout="wide"
+)
 
 
 # =========================
-# MERGE MODELS (SAFE)
+# AUTO REFRESH
 # =========================
 
-def merge_models(df, lstm_df):
+refresh = st.sidebar.slider("Auto Refresh (sec)", 0, 60, 0)
 
-    if "LSTM_SCORE" not in lstm_df.columns:
-        raise ValueError("❌ LSTM file must contain 'LSTM_SCORE' column")
-
-    merged = df.merge(
-        lstm_df,
-        on=["DATE", "SYMBOL"],
-        how="left"
-    )
-
-    # Fill missing safely
-    merged["LSTM_SCORE"] = merged["LSTM_SCORE"].fillna(0)
-
-    return merged
+if refresh > 0:
+    time.sleep(refresh)
+    st.rerun()
 
 
 # =========================
-# COMPUTE ALERTS (STABLE)
+# LOAD DATA (FROM BACKEND)
 # =========================
 
-def compute_alerts(df):
+data = backend_pipeline()
 
-    if df.empty:
-        raise ValueError("❌ Dataframe is empty after merge")
-
-    mean = df["LSTM_SCORE"].mean()
-    std = df["LSTM_SCORE"].std()
-
-    # fallback if std is NaN
-    if pd.isna(std):
-        std = 0
-
-    lstm_threshold = mean + 2 * std
-
-    df["CRITICAL_ALERT"] = (
-        (df.get("PRED_STRESS", 0) == 1) &
-        (df["LSTM_SCORE"] > lstm_threshold)
-    ).astype(int)
-
-    return df
+results = data["results"]
+status = data["status"]
+value = data["value"]
 
 
 # =========================
-# MARKET STATUS (SAFE)
+# HEADER
 # =========================
 
-def get_market_status(df):
+st.title("QuantWater Liquidity Risk Engine")
+st.markdown("### Institutional Portfolio Risk Monitoring System")
 
-    if df.empty:
-        return "No Data", 0
+st.caption(f"Last updated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    latest = df.sort_values("DATE").groupby("SYMBOL").tail(1)
 
-    if latest.empty:
-        return "No Data", 0
+# =========================
+# TOP METRICS
+# =========================
 
-    market_stress = latest["LSTM_SCORE"].mean()
+col1, col2, col3, col4 = st.columns(4)
 
-    if market_stress < 0.05:
-        status = "Normal"
-    elif market_stress < 0.15:
-        status = "Caution"
+col1.metric("Market Status", status)
+col2.metric("Market Stress", round(value, 4) if value else 0)
+col3.metric("Total Alerts", int(results["CRITICAL_ALERT"].sum()) if not results.empty else 0)
+col4.metric("Active Stocks", results["SYMBOL"].nunique() if not results.empty else 0)
+
+
+# =========================
+# SAFETY CHECK
+# =========================
+
+if results.empty:
+    st.error("No data available. Check backend or file paths.")
+    st.stop()
+
+
+# =========================
+# LATEST SNAPSHOT
+# =========================
+
+latest = results.sort_values("DATE").groupby("SYMBOL").tail(1)
+
+
+# =========================
+# TOP RISK STOCKS
+# =========================
+
+st.subheader("Top Risk Stocks")
+
+top_risk = latest.sort_values("LSTM_SCORE", ascending=False).head(5)
+
+st.dataframe(
+    top_risk[["SYMBOL", "LSTM_SCORE", "CRITICAL_ALERT"]],
+    use_container_width=True
+)
+
+
+# =========================
+# PORTFOLIO BUILDER
+# =========================
+
+st.subheader("Portfolio Builder")
+
+stocks = latest["SYMBOL"].unique()[:10]
+
+weights = {}
+
+cols = st.columns(len(stocks))
+
+for i, stock in enumerate(stocks):
+    weights[stock] = cols[i].slider(stock, 0.0, 1.0, 0.1)
+
+
+# Normalize weights
+total_weight = sum(weights.values())
+
+if total_weight == 0:
+    st.error("Total weight cannot be zero")
+    portfolio_stress = 0
+else:
+    weights = {k: v / total_weight for k, v in weights.items()}
+
+    portfolio_stress = 0
+
+    for stock, w in weights.items():
+        stock_val = latest[latest["SYMBOL"] == stock]["LSTM_SCORE"]
+        if len(stock_val) > 0:
+            portfolio_stress += w * stock_val.values[0]
+
+
+# =========================
+# PORTFOLIO METRICS
+# =========================
+
+def classify_risk(x):
+    if x < 0.05:
+        return "LOW"
+    elif x < 0.15:
+        return "MEDIUM"
     else:
-        status = "High Risk"
+        return "HIGH"
 
-    return status, market_stress
+
+risk_label = classify_risk(portfolio_stress)
+
+st.markdown(f"### Portfolio Stress: **{round(portfolio_stress, 4)}**")
+st.markdown(f"### Portfolio Risk Level: **{risk_label}**")
 
 
 # =========================
-# MAIN PIPELINE (ERROR SAFE)
+# SCENARIO SIMULATION
 # =========================
 
-def backend_pipeline():
+st.subheader("Stress Simulation")
 
-    try:
-        df, lstm_df = load_data()
+shock = st.slider("Market Shock (%)", -50, 50, 0)
 
-        df = merge_models(df, lstm_df)
+simulated_stress = portfolio_stress * (1 + shock / 100)
 
-        df = compute_alerts(df)
+st.metric("Simulated Stress", round(simulated_stress, 4))
 
-        status, value = get_market_status(df)
 
-        return {
-            "status": status,
-            "value": value,
-            "results": df
-        }
+# =========================
+# DOWNLOAD REPORT
+# =========================
 
-    except Exception as e:
-        print(f"❌ Backend failed: {e}")
+csv = results.to_csv(index=False)
 
-        # Return safe fallback (prevents blank screen)
-        return {
-            "status": "Error",
-            "value": 0,
-            "results": pd.DataFrame()
-        }
+st.download_button(
+    "Download Risk Report",
+    csv,
+    "risk_report.csv",
+    "text/csv"
+)
