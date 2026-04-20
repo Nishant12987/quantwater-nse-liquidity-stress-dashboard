@@ -29,23 +29,10 @@ st.set_page_config(
 
 
 # =========================
-# DARK THEME ENHANCEMENT
+# SIDEBAR
 # =========================
 
-st.markdown("""
-<style>
-.metric-box {
-    background-color: #111;
-    padding: 15px;
-    border-radius: 10px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-# =========================
-# AUTO REFRESH
-# =========================
+st.sidebar.markdown("### QuantWater v1.0")
 
 refresh = st.sidebar.slider("Auto Refresh (sec)", 0, 60, 0)
 
@@ -92,7 +79,21 @@ latest = results.sort_values("DATE").groupby("SYMBOL").tail(1)
 
 
 # =========================
-# METRICS (BLOOMBERG STYLE)
+# MARKET REGIME
+# =========================
+
+if value < 0.05:
+    regime = "🟢 Liquidity Abundant"
+elif value < 0.15:
+    regime = "🟡 Tightening Liquidity"
+else:
+    regime = "🔴 Stress Regime"
+
+st.markdown(f"### Market Regime: **{regime}**")
+
+
+# =========================
+# METRICS
 # =========================
 
 col1, col2, col3, col4 = st.columns(4)
@@ -104,21 +105,46 @@ col4.metric("Active Stocks", results["SYMBOL"].nunique())
 
 
 # =========================
-# TOP RISK TABLE
+# TOP RISK TABLE (COLORED)
 # =========================
+
+def risk_color(val):
+    if val < 0.05:
+        return "background-color: #0f5132"
+    elif val < 0.15:
+        return "background-color: #664d03"
+    else:
+        return "background-color: #842029"
 
 st.subheader("Top Risk Stocks")
 
 top_risk = latest.sort_values("LSTM_SCORE", ascending=False).head(10)
 
 st.dataframe(
-    top_risk[["SYMBOL", "LSTM_SCORE", "CRITICAL_ALERT"]],
+    top_risk.style.applymap(risk_color, subset=["LSTM_SCORE"]),
     use_container_width=True
 )
 
 
 # =========================
-# MARKET TREND (PLOTLY)
+# CRITICAL ALERTS
+# =========================
+
+alerts = latest[latest["CRITICAL_ALERT"] == 1]
+
+st.subheader("Critical Alerts")
+
+if alerts.empty:
+    st.success("No critical stress signals")
+else:
+    st.dataframe(
+        alerts[["SYMBOL", "LSTM_SCORE"]],
+        use_container_width=True
+    )
+
+
+# =========================
+# MARKET TREND
 # =========================
 
 st.subheader("Market Stress Trend")
@@ -140,7 +166,7 @@ st.plotly_chart(fig_trend, use_container_width=True)
 
 
 # =========================
-# TOP RISK BAR (PLOTLY)
+# TOP RISK BAR
 # =========================
 
 st.subheader("Top Risk Distribution")
@@ -157,7 +183,7 @@ st.plotly_chart(fig_bar, use_container_width=True)
 
 
 # =========================
-# SECTOR ANALYSIS (IMPROVED)
+# SECTOR ANALYSIS
 # =========================
 
 sector_map = {
