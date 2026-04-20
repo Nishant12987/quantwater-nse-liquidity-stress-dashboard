@@ -1,278 +1,184 @@
 import streamlit as st
+import pandas as pd
+import time
 import sys
 from pathlib import Path
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-import time
+import importlib.util
 
 # =========================
-# PATH SETUP
+# LOAD BACKEND (SAFE IMPORT)
 # =========================
 
-ROOT = Path(__file__).resolve().parents[1]
+BASE = Path(__file__).resolve().parents[2]
 
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "3-src"))
-sys.path.insert(0, str(ROOT / "3-src/4-ensemble"))
+backend_path = BASE / "3-src/4-ensemble/dashboard_backend.py"
 
-from dashboard_backend import backend_pipeline
+spec = importlib.util.spec_from_file_location("dashboard_backend", backend_path)
+backend_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(backend_module)
 
-# =========================
-# CONFIG
-# =========================
+backend_pipeline = backend_module.backend_pipeline
 
-st.set_page_config(page_title="Liquidity Risk Terminal", layout="wide")
 
 # =========================
-# CSS (IMPROVED)
+# PAGE CONFIG
 # =========================
 
-st.markdown("""
-<style>
-body { background-color: #0e1117; color: white; }
+st.set_page_config(layout="wide")
 
-.block-container {
-    padding-top: 1.5rem;
-}
-
-.card {
-    padding: 18px;
-    border-radius: 12px;
-    text-align: center;
-}
-
-.metric-title {
-    color: #9aa4b2;
-    font-size: 13px;
-}
-
-.metric-value {
-    font-size: 26px;
-    font-weight: bold;
-}
-
-.section-title {
-    font-size: 18px;
-    margin-top: 20px;
-    margin-bottom: 10px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# =========================
-# HEADER
-# =========================
-
-st.markdown("## 📊 Liquidity Risk Terminal")
-st.markdown("#### Hedge Fund Portfolio Risk System")
-st.markdown("---")
 
 # =========================
 # AUTO REFRESH
 # =========================
 
-refresh = st.sidebar.slider("⏱ Auto Refresh (sec)", 0, 60, 0)
+refresh = st.sidebar.slider("Auto Refresh (sec)", 0, 60, 0)
 
 if refresh > 0:
     time.sleep(refresh)
     st.rerun()
+
+
+# =========================
+# TITLE
+# =========================
+
+st.title("QuantWater Liquidity Risk Engine")
+st.markdown("### Institutional Portfolio Risk Monitoring System")
+
 
 # =========================
 # LOAD DATA
 # =========================
 
 data = backend_pipeline()
-df = pd.read_csv(
-    "models/checkpoints/xgboost_full_predictions.csv.gz",
-    compression="gzip"
-)
 
-df["DATE"] = pd.to_datetime(df["DATE"])
-latest_df = df.sort_values("DATE").groupby("SYMBOL").tail(1)
+results = data["results"]
+
 
 # =========================
-# EXPANDED SECTOR MAP
+# HEADER METRICS
+# =========================
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric("Market Status", data["status"])
+col2.metric("Market Stress", round(data["value"], 4))
+col3.metric("Total Alerts", int(results["CRITICAL_ALERT"].sum()))
+col4.metric("Active Stocks", results["SYMBOL"].nunique())
+
+st.caption(f"Last updated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+
+# =========================
+# SECTOR MAPPING (REALISTIC)
 # =========================
 
 sector_map = {
-    "HDFCBANK": "Banking", "ICICIBANK": "Banking", "SBIN": "Banking",
-    "AXISBANK": "Banking", "KOTAKBANK": "Banking",
-
-    "TCS": "IT", "INFY": "IT", "WIPRO": "IT", "HCLTECH": "IT",
-
-    "RELIANCE": "Energy", "ONGC": "Energy",
-    "ADANIENT": "Energy", "ADANIPORTS": "Energy",
-
-    "BHARTIARTL": "Telecom", "IDEA": "Telecom",
-
-    "TATAMOTORS": "Auto", "MARUTI": "Auto",
-
-    "ITC": "FMCG", "HINDUNILVR": "FMCG",
-    "LT": "Infra", "ULTRACEMCO": "Infra",
-    "BAJFINANCE": "NBFC"
+    "AAREYDRUGS": "Pharma",
+    "20MICRONS": "Materials",
+    "3MINDIA": "Industrial",
+    "360ONE": "Finance",
+    "AAKASH": "Healthcare"
 }
 
-latest_df["SECTOR"] = latest_df["SYMBOL"].map(sector_map).fillna("Other")
+results["SECTOR"] = results["SYMBOL"].map(sector_map).fillna("Other")
+
+
+# =========================
+# TOP RISK STOCKS
+# =========================
+
+st.subheader("Top Risk Stocks")
+
+top_risk = results.sort_values("LSTM_SCORE", ascending=False).head(5)
+
+st.dataframe(top_risk[["SYMBOL", "LSTM_SCORE", "CRITICAL_ALERT"]])
+
 
 # =========================
 # PORTFOLIO BUILDER
 # =========================
 
-st.sidebar.header("📂 Portfolio")
+st.subheader("Portfolio Risk Simulator")
 
-symbols = sorted(df["SYMBOL"].unique())
+symbols = results["SYMBOL"].unique()
 
-selected = st.sidebar.multiselect(
-    "Select Stocks",
-    symbols,
-    default=symbols[:5]
+selected = st.multiselect("Select Stocks", symbols[:20])
+
+weights = {}
+
+for stock in selected:
+    weights[stock] = st.slider(f"{stock} weight", 0.0, 1.0, 0.1)
+
+
+# =========================
+# NORMALIZE WEIGHTS
+# =========================
+
+if len(weights) > 0:
+
+    total_weight = sum(weights.values())
+
+    if total_weight == 0:
+        st.error("Total weight cannot be zero")
+
+    else:
+        weights = {k: v / total_weight for k, v in weights.items()}
+
+        latest = results.sort_values("DATE").groupby("SYMBOL").tail(1)
+
+        portfolio_stress = 0
+
+        for stock, w in weights.items():
+            stock_val = latest[latest["SYMBOL"] == stock]["LSTM_SCORE"]
+
+            if len(stock_val) > 0:
+                portfolio_stress += w * stock_val.values[0]
+
+        st.metric("Portfolio Stress", round(portfolio_stress, 4))
+
+
+        # =========================
+        # RISK CLASSIFICATION
+        # =========================
+
+        def classify_risk(x):
+            if x < 0.05:
+                return "LOW"
+            elif x < 0.15:
+                return "MEDIUM"
+            else:
+                return "HIGH"
+
+        risk_label = classify_risk(portfolio_stress)
+
+        st.markdown(f"### Portfolio Risk Level: **{risk_label}**")
+
+
+        # =========================
+        # SCENARIO SIMULATION
+        # =========================
+
+        st.subheader("Stress Simulation")
+
+        shock = st.slider("Market Shock (%)", -50, 50, 0)
+
+        simulated_stress = portfolio_stress * (1 + shock / 100)
+
+        st.metric("Simulated Stress", round(simulated_stress, 4))
+
+
+# =========================
+# DOWNLOAD REPORT
+# =========================
+
+st.subheader("Export")
+
+csv = results.to_csv(index=False)
+
+st.download_button(
+    "Download Risk Report",
+    csv,
+    "risk_report.csv",
+    "text/csv"
 )
-
-portfolio = []
-for s in selected:
-    w = st.sidebar.slider(f"{s}", 0.0, 1.0, 0.1)
-    portfolio.append((s, w))
-
-portfolio_df = pd.DataFrame(portfolio, columns=["SYMBOL", "WEIGHT"])
-
-if portfolio_df["WEIGHT"].sum() > 0:
-    portfolio_df["WEIGHT"] /= portfolio_df["WEIGHT"].sum()
-
-portfolio_df = portfolio_df.merge(latest_df, on="SYMBOL", how="left")
-
-# =========================
-# KPI CARDS (UPGRADED)
-# =========================
-
-def kpi_card(title, value, color):
-    st.markdown(f"""
-    <div class="card" style="background-color:{color};">
-        <div class="metric-title">{title}</div>
-        <div class="metric-value">{value}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-status = data.get("status", "UNKNOWN")
-value = data.get("value", 0)
-alerts = int(portfolio_df["PRED_STRESS"].sum())
-
-col1, col2, col3 = st.columns(3)
-
-kpi_card("Market Status", status,
-         "#1f7a3e" if status=="GREEN" else "#a67c00" if status=="AMBER" else "#8b0000")
-
-kpi_card("Portfolio Stress", round(value,4), "#2c2f38")
-kpi_card("Stress Alerts", alerts, "#2c2f38")
-
-# =========================
-# HERO GAUGE (CENTERED)
-# =========================
-
-fig = go.Figure(go.Indicator(
-    mode="gauge+number",
-    value=value,
-    title={'text': "Market Stress"},
-    gauge={
-        'axis': {'range': [0, 3]},
-        'bar': {'color': "red"},
-        'steps': [
-            {'range': [0, 0.5], 'color': "green"},
-            {'range': [0.5, 1.5], 'color': "yellow"},
-            {'range': [1.5, 3], 'color': "red"}
-        ]
-    }
-))
-
-col_g1, col_g2, col_g3 = st.columns([1,2,1])
-with col_g2:
-    st.plotly_chart(fig, use_container_width=True)
-
-# =========================
-# TREND
-# =========================
-
-st.markdown('<div class="section-title">📈 Portfolio Trend</div>', unsafe_allow_html=True)
-
-trend_list = []
-for s, w in zip(portfolio_df["SYMBOL"], portfolio_df["WEIGHT"]):
-    temp = df[df["SYMBOL"] == s].copy()
-    temp["W"] = temp["PRED_PROBA"] * w
-    trend_list.append(temp[["DATE", "W"]])
-
-trend = pd.concat(trend_list).groupby("DATE")["W"].sum().reset_index()
-
-fig = px.line(trend, x="DATE", y="W")
-st.plotly_chart(fig, use_container_width=True)
-
-# =========================
-# SECTOR VIEW
-# =========================
-
-st.markdown('<div class="section-title">🏦 Sector Risk</div>', unsafe_allow_html=True)
-
-sector = (
-    portfolio_df
-    .groupby("SECTOR")
-    .apply(lambda x: (x["WEIGHT"] * x["PRED_PROBA"]).sum())
-    .reset_index(name="RISK")
-    .sort_values("RISK", ascending=False)
-)
-
-fig = px.bar(sector, x="SECTOR", y="RISK", color="RISK")
-st.plotly_chart(fig, use_container_width=True)
-
-# =========================
-# RISK BREAKDOWN (NEW 🔥)
-# =========================
-
-st.markdown("### 🔍 Risk Breakdown")
-
-top5 = portfolio_df.sort_values("PRED_PROBA", ascending=False).head(5)
-
-fig = px.bar(top5, x="SYMBOL", y="PRED_PROBA", color="PRED_PROBA")
-st.plotly_chart(fig, use_container_width=True)
-
-# =========================
-# PORTFOLIO ALLOCATION (NEW 🔥)
-# =========================
-
-st.markdown("### 📦 Portfolio Allocation")
-
-fig = px.pie(portfolio_df, names="SYMBOL", values="WEIGHT")
-st.plotly_chart(fig, use_container_width=True)
-
-# =========================
-# TOP RISK DRIVER
-# =========================
-
-top = portfolio_df.sort_values("PRED_PROBA", ascending=False).iloc[0]
-
-st.markdown("### 🎯 Top Risk Driver")
-st.error(f"⚠️ {top['SYMBOL']} is contributing highest risk")
-
-# =========================
-# ALERTS
-# =========================
-
-st.markdown("### 🚨 Alerts")
-
-alerts_df = portfolio_df[portfolio_df["PRED_STRESS"] == 1]
-
-if not alerts_df.empty:
-    st.dataframe(alerts_df[["SYMBOL", "PRED_PROBA", "WEIGHT"]])
-else:
-    st.success("No stress in portfolio")
-
-# =========================
-# SIGNAL ENGINE
-# =========================
-
-st.markdown("### 🧠 Decision Signal")
-
-if value < 0.5:
-    st.success("🟢 Healthy Portfolio")
-elif value < 1.5:
-    st.warning("🟡 Monitor Closely")
-else:
-    st.error("🔴 Reduce Exposure")
