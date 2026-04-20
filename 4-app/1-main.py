@@ -1,184 +1,117 @@
-import streamlit as st
 import pandas as pd
-import time
-import sys
+import numpy as np
 from pathlib import Path
-import importlib.util
+
 
 # =========================
-# LOAD BACKEND (SAFE IMPORT)
+# PATH SETUP
 # =========================
 
 BASE = Path(__file__).resolve().parents[2]
 
-backend_path = BASE / "3-src/4-ensemble/dashboard_backend.py"
 
-spec = importlib.util.spec_from_file_location("dashboard_backend", backend_path)
-backend_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(backend_module)
+# =========================
+# LOAD DATA (FIXED)
+# =========================
 
-backend_pipeline = backend_module.backend_pipeline
+def load_data():
+    xgb_path = BASE / "models/checkpoints/xgboost_full_predictions.csv.gz"
+    lstm_path = BASE / "models/checkpoints/lstm_predictions.csv.gz"
+
+    if not xgb_path.exists():
+        raise FileNotFoundError(f"{xgb_path} not found")
+
+    if not lstm_path.exists():
+        raise FileNotFoundError(f"{lstm_path} not found")
+
+    # ✅ Load XGBoost predictions
+    df = pd.read_csv(
+        xgb_path,
+        parse_dates=["DATE"],
+        compression="gzip"
+    )
+
+    # ✅ Load LSTM predictions
+    lstm_df = pd.read_csv(
+        lstm_path,
+        parse_dates=["DATE"],
+        compression="gzip"
+    )
+
+    return df, lstm_df
 
 
 # =========================
-# PAGE CONFIG
+# MERGE DATA
 # =========================
 
-st.set_page_config(layout="wide")
+def merge_models(df, lstm_df):
 
+    merged = df.merge(
+        lstm_df,
+        on=["DATE", "SYMBOL"],
+        how="left"
+    )
 
-# =========================
-# AUTO REFRESH
-# =========================
+    # Fill missing safely
+    merged["LSTM_SCORE"] = merged["LSTM_SCORE"].fillna(0)
 
-refresh = st.sidebar.slider("Auto Refresh (sec)", 0, 60, 0)
-
-if refresh > 0:
-    time.sleep(refresh)
-    st.rerun()
-
-
-# =========================
-# TITLE
-# =========================
-
-st.title("QuantWater Liquidity Risk Engine")
-st.markdown("### Institutional Portfolio Risk Monitoring System")
+    return merged
 
 
 # =========================
-# LOAD DATA
+# COMPUTE ALERTS
 # =========================
 
-data = backend_pipeline()
+def compute_alerts(df):
 
-results = data["results"]
+    # Dynamic threshold
+    lstm_threshold = np.mean(df["LSTM_SCORE"]) + 2 * np.std(df["LSTM_SCORE"])
 
+    df["CRITICAL_ALERT"] = (
+        (df["PRED_STRESS"] == 1) &
+        (df["LSTM_SCORE"] > lstm_threshold)
+    ).astype(int)
 
-# =========================
-# HEADER METRICS
-# =========================
-
-col1, col2, col3, col4 = st.columns(4)
-
-col1.metric("Market Status", data["status"])
-col2.metric("Market Stress", round(data["value"], 4))
-col3.metric("Total Alerts", int(results["CRITICAL_ALERT"].sum()))
-col4.metric("Active Stocks", results["SYMBOL"].nunique())
-
-st.caption(f"Last updated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    return df
 
 
 # =========================
-# SECTOR MAPPING (REALISTIC)
+# MARKET STATUS
 # =========================
 
-sector_map = {
-    "AAREYDRUGS": "Pharma",
-    "20MICRONS": "Materials",
-    "3MINDIA": "Industrial",
-    "360ONE": "Finance",
-    "AAKASH": "Healthcare"
-}
+def get_market_status(df):
 
-results["SECTOR"] = results["SYMBOL"].map(sector_map).fillna("Other")
+    latest = df.sort_values("DATE").groupby("SYMBOL").tail(1)
 
+    market_stress = latest["LSTM_SCORE"].mean()
 
-# =========================
-# TOP RISK STOCKS
-# =========================
-
-st.subheader("Top Risk Stocks")
-
-top_risk = results.sort_values("LSTM_SCORE", ascending=False).head(5)
-
-st.dataframe(top_risk[["SYMBOL", "LSTM_SCORE", "CRITICAL_ALERT"]])
-
-
-# =========================
-# PORTFOLIO BUILDER
-# =========================
-
-st.subheader("Portfolio Risk Simulator")
-
-symbols = results["SYMBOL"].unique()
-
-selected = st.multiselect("Select Stocks", symbols[:20])
-
-weights = {}
-
-for stock in selected:
-    weights[stock] = st.slider(f"{stock} weight", 0.0, 1.0, 0.1)
-
-
-# =========================
-# NORMALIZE WEIGHTS
-# =========================
-
-if len(weights) > 0:
-
-    total_weight = sum(weights.values())
-
-    if total_weight == 0:
-        st.error("Total weight cannot be zero")
-
+    if market_stress < 0.05:
+        status = "Normal"
+    elif market_stress < 0.15:
+        status = "Caution"
     else:
-        weights = {k: v / total_weight for k, v in weights.items()}
+        status = "High Risk"
 
-        latest = results.sort_values("DATE").groupby("SYMBOL").tail(1)
-
-        portfolio_stress = 0
-
-        for stock, w in weights.items():
-            stock_val = latest[latest["SYMBOL"] == stock]["LSTM_SCORE"]
-
-            if len(stock_val) > 0:
-                portfolio_stress += w * stock_val.values[0]
-
-        st.metric("Portfolio Stress", round(portfolio_stress, 4))
-
-
-        # =========================
-        # RISK CLASSIFICATION
-        # =========================
-
-        def classify_risk(x):
-            if x < 0.05:
-                return "LOW"
-            elif x < 0.15:
-                return "MEDIUM"
-            else:
-                return "HIGH"
-
-        risk_label = classify_risk(portfolio_stress)
-
-        st.markdown(f"### Portfolio Risk Level: **{risk_label}**")
-
-
-        # =========================
-        # SCENARIO SIMULATION
-        # =========================
-
-        st.subheader("Stress Simulation")
-
-        shock = st.slider("Market Shock (%)", -50, 50, 0)
-
-        simulated_stress = portfolio_stress * (1 + shock / 100)
-
-        st.metric("Simulated Stress", round(simulated_stress, 4))
+    return status, market_stress
 
 
 # =========================
-# DOWNLOAD REPORT
+# MAIN PIPELINE
 # =========================
 
-st.subheader("Export")
+def backend_pipeline():
 
-csv = results.to_csv(index=False)
+    df, lstm_df = load_data()
 
-st.download_button(
-    "Download Risk Report",
-    csv,
-    "risk_report.csv",
-    "text/csv"
-)
+    df = merge_models(df, lstm_df)
+
+    df = compute_alerts(df)
+
+    status, value = get_market_status(df)
+
+    return {
+        "status": status,
+        "value": value,
+        "results": df
+    }
