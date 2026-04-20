@@ -127,24 +127,26 @@ joblib.dump(threshold, MODEL_DIR / "xgboost_threshold.pkl")
 
 
 # -------------------------------------------------
-# GENERATE FULL PREDICTIONS (COMPRESSED)
+# GENERATE FULL PREDICTIONS (FIXED)
 # -------------------------------------------------
 
 df["PRED_PROBA"] = model.predict_proba(X)[:, 1]
 df["PRED_STRESS"] = (df["PRED_PROBA"] > threshold).astype(int)
 
-# Keep only required columns
+# ✅ KEEP FEATURES + PREDICTIONS (CRITICAL FIX)
 pred_df = df[[
     "DATE",
     "SYMBOL",
+    "AMIHUD",
+    "ROLL_SPREAD",
+    "LIQUIDITY_COMMONALITY",
+    "MARKET_AMIHUD_Z",
     "PRED_PROBA",
     "PRED_STRESS"
 ]].copy()
 
-# Sort for consistency
 pred_df = pred_df.sort_values("DATE")
 
-# Save compressed file
 output_path = MODEL_DIR / "xgboost_full_predictions.csv.gz"
 
 pred_df.to_csv(
